@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div x-data="systemMonitor()" x-init="init()" class="space-y-6">
+  <p class="text-sm text-slate-500">Live edge device metrics · refreshes every 5 seconds</p>
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">CPU</p><p class="mt-2 text-3xl font-semibold gauge-value" x-text="snap.cpu_percent + '%'"></p><canvas id="cpuGauge" height="80"></canvas></div>
+    <div class="rounded-xl border bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Memory</p><p class="mt-2 text-3xl font-semibold gauge-value" x-text="snap.memory_percent + '%'"></p></div>
+    <div class="rounded-xl border bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Disk</p><p class="mt-2 text-3xl font-semibold gauge-value" x-text="snap.disk_percent + '%'"></p></div>
+    <div class="rounded-xl border bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Temperature</p><p class="mt-2 text-3xl font-semibold gauge-value" x-text="snap.cpu_temp_c != null ? snap.cpu_temp_c + '°C' : 'N/A'"></p></div>
+  </div>
+  <div class="rounded-xl border bg-white p-5 shadow-sm">
+    <h3 class="text-sm font-semibold">CPU — Last Hour</h3>
+    <canvas id="cpuLine" class="mt-4 h-64"></canvas>
+  </div>
+  <div class="grid gap-4 md:grid-cols-3">
+    <template x-for="svc in services" :key="svc.name">
+      <div class="rounded-xl border bg-white p-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <p class="font-medium" x-text="svc.name"></p>
+          <span class="rounded-full px-2 py-0.5 text-xs" :class="svc.status==='running'||svc.status==='active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'" x-text="svc.status"></span>
+        </div>
+        <p class="mt-1 text-xs text-slate-400" x-text="svc.detail"></p>
+      </div>
+    </template>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function systemMonitor() {
+  let lineChart = null;
+  return {
+    snap: { cpu_percent: 0, memory_percent: 0, disk_percent: 0, cpu_temp_c: null },
+    services: [],
+    async refresh() {
+      const [s, h, sv] = await Promise.all([
+        fetch('/api/system/snapshot').then(r=>r.json()),
+        fetch('/api/system/cpu-history').then(r=>r.json()),
+        fetch('/api/system/services').then(r=>r.json()),
+      ]);
+      this.snap = s;
+      this.services = sv.services;
+      const pts = h.points || [];
+      const labels = pts.map(p => new Date(p.ts).toLocaleTimeString());
+      const data = pts.map(p => p.cpu_percent);
+      if (!lineChart) {
+        lineChart = new Chart(document.getElementById('cpuLine'), {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'CPU %', data, borderColor: '#4f46e5', tension: 0.3, fill: false }] },
+          options: { animation: false, scales: { y: { min: 0, max: 100 } } }
+        });
+      } else {
+        lineChart.data.labels = labels;
+        lineChart.data.datasets[0].data = data;
+        lineChart.update('none');
+      }
+    },
+    init() { this.refresh(); setInterval(() => this.refresh(), 5000); }
+  };
+}
+</script>
+{% endblock %}

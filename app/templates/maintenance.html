@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block content %}
+<div x-data="maintenanceCenter()" x-init="init()" class="space-y-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <p class="text-sm text-slate-500">Resource-aware project maintenance for this Raspberry Pi.</p>
+    <div class="flex gap-2">
+      <button type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" @click="refresh()" :disabled="loading">Refresh</button>
+      <button type="button" class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50" @click="runCleanup()" :disabled="loading">Run cleanup</button>
+    </div>
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <p class="text-sm text-slate-500">Memory</p>
+      <p class="mt-2 text-3xl font-semibold" x-text="pct(status?.snapshot?.memory_percent)"></p>
+      <p class="mt-1 text-xs text-slate-400" x-text="mb(status?.snapshot?.memory_available_mb) + ' available'"></p>
+    </div>
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <p class="text-sm text-slate-500">Swap</p>
+      <p class="mt-2 text-3xl font-semibold" x-text="pct(status?.snapshot?.swap_percent)"></p>
+      <p class="mt-1 text-xs text-slate-400" x-text="mb(status?.snapshot?.swap_used_mb) + ' used'"></p>
+    </div>
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <p class="text-sm text-slate-500">Disk</p>
+      <p class="mt-2 text-3xl font-semibold" x-text="pct(status?.snapshot?.disk_percent)"></p>
+      <p class="mt-1 text-xs text-slate-400" x-text="gb(status?.snapshot?.disk_free_gb) + ' free'"></p>
+    </div>
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <p class="text-sm text-slate-500">Temperature</p>
+      <p class="mt-2 text-3xl font-semibold" x-text="status?.snapshot?.cpu_temp_c != null ? status.snapshot.cpu_temp_c + 'C' : 'N/A'"></p>
+      <p class="mt-1 text-xs text-slate-400" x-text="'Edge Task Hub ' + mb(status?.snapshot?.edge_task_hub_rss_mb)"></p>
+    </div>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-3">
+    <div class="rounded-xl border bg-white p-5 shadow-sm lg:col-span-2">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold">Cleanup Preview</h3>
+        <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600" x-text="formatMb(preview?.estimated_mb)"></span>
+      </div>
+      <div class="mt-4 grid gap-3 sm:grid-cols-3">
+        <div class="rounded-lg bg-slate-50 p-3">
+          <p class="text-xs text-slate-500">Pycache dirs</p>
+          <p class="mt-1 text-xl font-semibold" x-text="preview?.pycache_dirs?.length ?? 0"></p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-3">
+          <p class="text-xs text-slate-500">Old metric rows</p>
+          <p class="mt-1 text-xl font-semibold" x-text="preview?.old_system_metrics ?? 0"></p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-3">
+          <p class="text-xs text-slate-500">Old task runs</p>
+          <p class="mt-1 text-xl font-semibold" x-text="preview?.old_task_runs ?? 0"></p>
+        </div>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-lg border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Path</th><th class="px-4 py-3">Files</th><th class="px-4 py-3">Size</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            <template x-for="item in preview?.pycache_dirs || []" :key="item.path">
+              <tr><td class="px-4 py-3 font-mono text-xs" x-text="item.path"></td><td class="px-4 py-3" x-text="item.files"></td><td class="px-4 py-3" x-text="bytes(item.bytes)"></td></tr>
+            </template>
+            <tr x-show="!(preview?.pycache_dirs || []).length"><td class="px-4 py-3 text-slate-400" colspan="3">No project pycache directories found.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <h3 class="text-sm font-semibold">Policy</h3>
+      <dl class="mt-4 space-y-3 text-sm">
+        <div><dt class="text-slate-500">Mode</dt><dd class="font-medium" x-text="status?.policy?.mode || 'loading'"></dd></div>
+        <div><dt class="text-slate-500">Retention</dt><dd class="font-medium" x-text="(status?.policy?.retention_days ?? '-') + ' days'"></dd></div>
+        <div><dt class="text-slate-500">Cooldown</dt><dd class="font-medium" x-text="(status?.policy?.auto_cooldown_hours ?? '-') + ' hours'"></dd></div>
+        <div><dt class="text-slate-500">Safe roots</dt><dd class="font-mono text-xs" x-text="(status?.policy?.safe_roots || []).join(', ')"></dd></div>
+      </dl>
+      <button type="button" class="mt-5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50" @click="explain()" :disabled="loading">Explain with local model</button>
+    </div>
+  </div>
+
+  <div x-show="result" class="rounded-xl border bg-white p-5 shadow-sm">
+    <h3 class="text-sm font-semibold">Last Cleanup Result</h3>
+    <div class="mt-3 grid gap-3 sm:grid-cols-4 text-sm">
+      <div><p class="text-slate-500">Status</p><p class="font-medium" x-text="result?.status"></p></div>
+      <div><p class="text-slate-500">Deleted files</p><p class="font-medium" x-text="result?.result?.deleted_files ?? 0"></p></div>
+      <div><p class="text-slate-500">Deleted rows</p><p class="font-medium" x-text="(result?.result?.deleted_system_metrics ?? 0) + (result?.result?.deleted_task_runs ?? 0)"></p></div>
+      <div><p class="text-slate-500">Freed</p><p class="font-medium" x-text="formatMb(result?.result?.deleted_mb)"></p></div>
+    </div>
+    <p class="mt-3 text-sm text-rose-600" x-show="(result?.errors || []).length" x-text="(result?.errors || []).join('; ')"></p>
+  </div>
+
+  <div x-show="explanation" class="rounded-xl border bg-white p-5 shadow-sm">
+    <h3 class="text-sm font-semibold">Local Model Explanation</h3>
+    <pre class="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm text-slate-700" x-text="explanation"></pre>
+  </div>
+
+  <div class="rounded-xl border bg-white p-5 shadow-sm">
+    <h3 class="text-sm font-semibold">Maintenance Log</h3>
+    <div class="mt-4 overflow-hidden rounded-lg border border-slate-200">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Time</th><th class="px-4 py-3">Trigger</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Result</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          <template x-for="entry in status?.recent_logs || []" :key="entry.timestamp + entry.trigger">
+            <tr>
+              <td class="px-4 py-3" x-text="new Date(entry.timestamp).toLocaleString()"></td>
+              <td class="px-4 py-3" x-text="entry.trigger"></td>
+              <td class="px-4 py-3" x-text="entry.status"></td>
+              <td class="px-4 py-3" x-text="entry.result ? ('files=' + entry.result.deleted_files + ', rows=' + ((entry.result.deleted_system_metrics || 0) + (entry.result.deleted_task_runs || 0))) : (entry.error || entry.text || '-')"></td>
+            </tr>
+          </template>
+          <tr x-show="!(status?.recent_logs || []).length"><td class="px-4 py-3 text-slate-400" colspan="4">No maintenance actions recorded yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function maintenanceCenter() {
+  return {
+    loading: false,
+    status: null,
+    preview: null,
+    result: null,
+    explanation: '',
+    async init() { await this.refresh(); },
+    async refresh() {
+      this.loading = true;
+      try {
+        const [status, preview] = await Promise.all([
+          fetch('/api/maintenance/status').then(r => r.json()),
+          fetch('/api/maintenance/preview').then(r => r.json()),
+        ]);
+        this.status = status;
+        this.preview = preview;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async runCleanup() {
+      if (!window.confirm('Run project-only cleanup now?')) return;
+      this.loading = true;
+      try {
+        const response = await fetch('/api/maintenance/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm: true }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'cleanup failed');
+        this.result = data;
+        await this.refresh();
+      } catch (err) {
+        this.result = { status: 'failed', errors: [String(err.message || err)], result: {} };
+      } finally {
+        this.loading = false;
+      }
+    },
+    async explain() {
+      this.loading = true;
+      this.explanation = '';
+      try {
+        const response = await fetch('/api/maintenance/explain', { method: 'POST' });
+        const data = await response.json();
+        this.explanation = data.ok ? data.explanation : ('Model explanation unavailable: ' + (data.error || 'unknown error'));
+        await this.refresh();
+      } finally {
+        this.loading = false;
+      }
+    },
+    pct(value) { return value == null ? 'N/A' : value + '%'; },
+    mb(value) { return value == null ? 'N/A' : value + ' MB'; },
+    gb(value) { return value == null ? 'N/A' : value + ' GB'; },
+    bytes(value) { return value == null ? '0 B' : (value / 1024).toFixed(1) + ' KB'; },
+    formatMb(value) { return value == null ? '0 MB' : value + ' MB'; },
+  };
+}
+</script>
+{% endblock %}

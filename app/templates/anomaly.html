@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h2 class="text-2xl font-semibold text-slate-900">Anomaly Detection</h2>
+    <p class="mt-1 text-sm text-slate-500">On-device Isolation Forest on CPU, memory, disk, temperature, and network metrics.</p>
+  </div>
+  <button type="button" id="trainBtn" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500">
+    Train Now
+  </button>
+</div>
+
+{% if not sklearn_available %}
+<div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+  scikit-learn is not available. Install it in the venv to enable anomaly detection.
+</div>
+{% endif %}
+
+<div class="mt-6 grid gap-4 sm:grid-cols-3">
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Model Status</p>
+    <p class="mt-2 text-xl font-semibold" id="modelStatus">{{ 'Trained' if model_trained else 'Not trained yet' }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Samples Collected</p>
+    <p class="mt-2 text-3xl font-semibold text-slate-900" id="sampleCount">{{ samples_collected }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Anomalies (24h)</p>
+    <p class="mt-2 text-3xl font-semibold text-rose-600" id="anomalyCount">{{ anomalies_24h }}</p>
+  </div>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+  <h3 class="text-sm font-semibold text-slate-900">Anomaly Score (24 hours)</h3>
+  <p class="text-xs text-slate-400 mt-1">Red markers indicate detected anomalies</p>
+  <canvas id="anomalyChart" class="mt-4 h-72 w-full"></canvas>
+</div>
+
+<div class="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-200 px-5 py-4">
+    <h3 class="text-sm font-semibold text-slate-900">Recent Anomaly Events</h3>
+  </div>
+  <table class="min-w-full text-sm">
+    <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+      <tr>
+        <th class="px-4 py-3">Time</th>
+        <th class="px-4 py-3">Score</th>
+        <th class="px-4 py-3">CPU</th>
+        <th class="px-4 py-3">Mem</th>
+        <th class="px-4 py-3">Disk</th>
+        <th class="px-4 py-3">Temp</th>
+        <th class="px-4 py-3">Likely cause</th>
+      </tr>
+    </thead>
+    <tbody id="eventsBody" class="divide-y divide-slate-100"></tbody>
+  </table>
+  <p id="noEvents" class="hidden px-5 py-8 text-center text-slate-500">No anomalies detected yet. Collect samples for at least a few minutes.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let anomalyChart;
+async function refreshAnomaly() {
+  const [stats, series, events] = await Promise.all([
+    fetch('/api/anomaly/stats').then(r => r.json()),
+    fetch('/api/anomaly/series').then(r => r.json()),
+    fetch('/api/anomaly/events').then(r => r.json()),
+  ]);
+  document.getElementById('modelStatus').textContent = stats.model_trained ? 'Trained' : 'Not trained yet';
+  document.getElementById('sampleCount').textContent = stats.samples_collected;
+  document.getElementById('anomalyCount').textContent = stats.anomalies_24h;
+  const pts = series.points || [];
+  const labels = pts.map(p => new Date(p.ts).toLocaleTimeString());
+  const scores = pts.map(p => p.score);
+  const colors = pts.map(p => p.is_anomaly ? '#f43f5e' : '#4f46e5');
+  if (!anomalyChart) {
+    anomalyChart = new Chart(document.getElementById('anomalyChart'), {
+      type: 'line',
+      data: { labels, datasets: [{ label: 'Anomaly score', data: scores, borderColor: '#6366f1', pointBackgroundColor: colors, pointRadius: pts.map(p => p.is_anomaly ? 6 : 2), tension: 0.2 }] },
+      options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+    });
+  } else {
+    anomalyChart.data.labels = labels;
+    anomalyChart.data.datasets[0].data = scores;
+    anomalyChart.data.datasets[0].pointBackgroundColor = colors;
+    anomalyChart.data.datasets[0].pointRadius = pts.map(p => p.is_anomaly ? 6 : 2);
+    anomalyChart.update('none');
+  }
+  const tbody = document.getElementById('eventsBody');
+  const ev = events.events || [];
+  document.getElementById('noEvents').classList.toggle('hidden', ev.length > 0);
+  tbody.innerHTML = ev.map(e => `
+    <tr class="hover:bg-slate-50">
+      <td class="px-4 py-3">${new Date(e.timestamp).toLocaleString()}</td>
+      <td class="px-4 py-3 font-medium text-rose-600">${(e.score||0).toFixed(2)}</td>
+      <td class="px-4 py-3">${e.cpu?.toFixed(0)}%</td>
+      <td class="px-4 py-3">${e.mem?.toFixed(0)}%</td>
+      <td class="px-4 py-3">${e.disk?.toFixed(0)}%</td>
+      <td class="px-4 py-3">${e.temp != null ? e.temp + '°C' : '—'}</td>
+      <td class="px-4 py-3 text-slate-600">${e.likely_cause}</td>
+    </tr>
+  `).join('');
+}
+document.getElementById('trainBtn').addEventListener('click', async () => {
+  const r = await fetch('/api/anomaly/train', { method: 'POST' });
+  const j = await r.json();
+  alert(j.message || (j.ok ? 'Training complete' : 'Training failed'));
+  refreshAnomaly();
+});
+refreshAnomaly();
+setInterval(refreshAnomaly, 30000);
+</script>
+{% endblock %}

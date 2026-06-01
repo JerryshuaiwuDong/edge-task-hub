@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ page_title }} · Edge Task Hub{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="h-full text-slate-800 antialiased" x-data="{ sidebarOpen: false }">
+  <div class="flex min-h-full">
+    <div class="fixed inset-0 z-40 bg-slate-900/50 lg:hidden" x-show="sidebarOpen" x-cloak @click="sidebarOpen=false"></div>
+    <aside class="fixed inset-y-0 left-0 z-50 w-60 -translate-x-full border-r border-slate-200 bg-white transition-transform lg:translate-x-0"
+           :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
+      <div class="flex h-16 items-center gap-2 border-b border-slate-200 px-5">
+        <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm">E</div>
+        <span class="font-semibold text-slate-900">Edge Task Hub</span>
+      </div>
+      <nav class="space-y-1 p-3 text-sm">
+        <a href="/" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='dashboard' %}active{% endif %}">
+          <i data-lucide="layout-dashboard" class="h-4 w-4"></i> Dashboard
+        </a>
+        <a href="/tasks" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='tasks' %}active{% endif %}">
+          <i data-lucide="list-todo" class="h-4 w-4"></i> Tasks
+        </a>
+        <a href="/system" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='system' %}active{% endif %}">
+          <i data-lucide="cpu" class="h-4 w-4"></i> System
+        </a>
+        <a href="/anomaly" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='anomaly' %}active{% endif %}">
+          <i data-lucide="brain" class="h-4 w-4"></i> Anomaly Detection
+        </a>
+        <a href="/maintenance" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='maintenance' %}active{% endif %}">
+          <i data-lucide="wrench" class="h-4 w-4"></i> Maintenance
+        </a>
+        <a href="/model-chat" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='model-chat' %}active{% endif %}">
+          <i data-lucide="message-square-text" class="h-4 w-4"></i> Model Chat
+        </a>
+        <a href="/model-router" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='model-router' %}active{% endif %}">
+          <i data-lucide="route" class="h-4 w-4"></i> Model Router
+        </a>
+        <a href="/sources" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='sources' %}active{% endif %}">
+          <i data-lucide="layers" class="h-4 w-4"></i> Sources
+        </a>
+        <a href="/settings" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 {% if active_nav=='settings' %}active{% endif %}">
+          <i data-lucide="settings" class="h-4 w-4"></i> Settings
+        </a>
+      </nav>
+    </aside>
+    <div class="flex flex-1 flex-col lg:pl-60">
+      <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6">
+        <div class="flex items-center gap-3">
+          <button type="button" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden" @click="sidebarOpen=true">
+            <i data-lucide="menu" class="h-5 w-5"></i>
+          </button>
+          <div>
+            <p class="text-xs text-slate-400">Edge AI Operations</p>
+            <h1 class="text-lg font-semibold text-slate-900">{{ page_title }}</h1>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
+          <span class="h-2 w-2 rounded-full bg-emerald-500"></span> pi3@raspberrypi
+        </div>
+      </header>
+      <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+  <script>if(window.lucide) lucide.createIcons();</script>
+</body>
+</html>

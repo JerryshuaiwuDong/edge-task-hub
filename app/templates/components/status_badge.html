@@ -1,0 +1,11 @@
+{% if status == 'success' %}
+<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">{{ status|capitalize }}</span>
+{% elif status == 'failed' %}
+<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">{{ status|capitalize }}</span>
+{% elif status == 'running' %}
+<span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">{{ status|capitalize }}</span>
+{% elif status == 'anomaly_alert' %}
+<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">Anomaly</span>
+{% else %}
+<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-500/20">{{ status|capitalize }}</span>
+{% endif %}

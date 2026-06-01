@@ -1,0 +1,391 @@
+{
+  "generated_at": "2026-05-29T09:50:15+00:00",
+  "manual_final_news_run": {
+    "timestamp": "2026-05-29",
+    "scenario": "final_news_summary_api",
+    "backend": "ollama",
+    "model": "qwen3:1.7b",
+    "ok": true,
+    "fallback": false,
+    "elapsed_seconds": 55.624,
+    "tokens_per_second": 2.208,
+    "note": "Verified through the real /api/model/news-summary endpoint after enabling think=false and a 300-second summary timeout."
+  },
+  "model_status": {
+    "ollama": {
+      "running": true,
+      "configured": false,
+      "model": "qwen3:0.6b",
+      "num_ctx": 1024,
+      "keep_alive": "0"
+    },
+    "openclaw": {
+      "running": false,
+      "configured": false,
+      "gateway_url": "ws://127.0.0.1:18789"
+    },
+    "speed_target_seconds": 30,
+    "news_summary": {
+      "model": "qwen3:1.7b",
+      "timeout_seconds": 300,
+      "max_tokens": 160
+    },
+    "candidate_models": [
+      "qwen3:1.7b",
+      "qwen3:0.6b",
+      "qwen3.5:0.8b",
+      "qwen2.5:0.5b-instruct",
+      "tinyllama",
+      "llama3.2:1b"
+    ],
+    "recent_benchmark": {
+      "timestamp": "2026-05-28T08:58:26.881877+00:00",
+      "backend": "ollama",
+      "model": "qwen3.5:0.8b",
+      "task": "news",
+      "ok": true,
+      "elapsed_seconds": 74.832,
+      "tokens_per_second": 1.965
+    },
+    "router": {
+      "timestamp": "2026-05-29T09:50:15.566107Z",
+      "snapshot": {
+        "memory_percent": 14.5,
+        "memory_available_mb": 6678.3,
+        "swap_percent": 12.4,
+        "disk_percent": 74.8,
+        "disk_free_gb": 6.84,
+        "disk_total_gb": 28.68,
+        "disk_used_gb": 20.36,
+        "ollama_running": true
+      },
+      "installed_models": [
+        "qwen2.5:0.5b-instruct",
+        "qwen3.5:0.8b",
+        "qwen3:0.6b",
+        "qwen3:1.7b"
+      ],
+      "selected_backend": "ollama",
+      "selected_model": "qwen3:1.7b",
+      "decision_reason": "Ollama is running, memory is sufficient, and news summaries now prefer quality over a strict 30-second cold-start target.",
+      "policy": {
+        "min_llm_memory_mb": 1500,
+        "min_qwen3_download_gb": 1.0,
+        "ollama_keep_alive": "0",
+        "ollama_num_ctx": 1024,
+        "dangerous_actions_forbidden": [
+          "drop_caches",
+          "swapoff",
+          "automatic process kill",
+          "automatic service restart"
+        ]
+      },
+      "candidates": [
+        {
+          "name": "qwen3.5:0.8b",
+          "type": "local_llm",
+          "installed": true,
+          "status": "rejected",
+          "reason": "Historical benchmark showed weak quality and slow cold-start behavior for this project.",
+          "evidence": {
+            "ok": null,
+            "elapsed_seconds": null,
+            "tokens_per_second": null,
+            "failure_reason": "No benchmark record yet."
+          }
+        },
+        {
+          "name": "qwen3:1.7b",
+          "type": "local_llm",
+          "installed": true,
+          "status": "selected",
+          "reason": "Quality-first local model for daily news and private document summaries.",
+          "evidence": {
+            "ok": true,
+            "elapsed_seconds": 74.832,
+            "tokens_per_second": 1.965,
+            "failure_reason": null
+          }
+        },
+        {
+          "name": "qwen3:0.6b",
+          "type": "local_llm_candidate",
+          "installed": true,
+          "status": "fast_candidate",
+          "reason": "Installed as the fast local model candidate for short reminders and quick summaries.",
+          "evidence": {
+            "ok": false,
+            "elapsed_seconds": 0.583,
+            "tokens_per_second": null,
+            "failure_reason": "pulling manifest pulling manifest pulling manifest pulling manifest pulling manifest pulling manifest Error: pull model manifest: Get \"https://registry.ollama.ai/v2/library/qwen3/manifests/0.6b\": tls: failed to verify certificate: x509: certificate signed by unknown authority"
+          }
+        },
+        {
+          "name": "rules",
+          "type": "deterministic_fallback",
+          "installed": true,
+          "status": "fallback",
+          "reason": "Fast deterministic fallback when Ollama is stopped or unavailable.",
+          "evidence": {
+            "elapsed_seconds": 0,
+            "tokens_per_second": null
+          }
+        },
+        {
+          "name": "Isolation Forest",
+          "type": "system_status_model",
+          "installed": true,
+          "status": "device_health_model",
+          "reason": "Analyzes CPU, memory, disk, temperature, and network metrics; it is not a news summarizer.",
+          "evidence": {
+            "samples_collected": null,
+            "anomalies_24h": null
+          }
+        }
+      ]
+    },
+    "commands": {
+      "start_ollama": "cd /home/pi3/edge-task-hub && scripts/edge_services.sh start ollama",
+      "stop_ollama": "cd /home/pi3/edge-task-hub && scripts/edge_services.sh stop ollama",
+      "start_openclaw": "cd /home/pi3/edge-task-hub && scripts/edge_services.sh start openclaw",
+      "stop_openclaw": "cd /home/pi3/edge-task-hub && scripts/edge_services.sh stop openclaw"
+    }
+  },
+  "anomaly_stats": {
+    "enabled": true,
+    "sklearn_available": true,
+    "model_trained": true,
+    "samples_collected": 3465,
+    "anomalies_24h": 15
+  },
+  "system_snapshot": {
+    "timestamp": "2026-05-29T09:50:15.606752+00:00",
+    "cpu_percent": 0.0,
+    "memory_percent": 14.5,
+    "memory_used_gb": 1.11,
+    "memory_total_gb": 7.63,
+    "disk_percent": 74.8,
+    "disk_used_gb": 20.36,
+    "disk_total_gb": 28.68,
+    "cpu_temp_c": 55.0
+  },
+  "service_status": {
+    "edge_task_hub": "active",
+    "ollama": "active",
+    "openclaw_gateway": "inactive"
+  },
+  "resources": {
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           7.6Gi       1.1Gi       1.4Gi       116Mi       5.4Gi       6.5Gi\nSwap:          2.0Gi       253Mi       1.8Gi",
+    "disk": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/mmcblk0p2   29G   21G  6.9G  75% /"
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "name": "System Self-Check",
+      "task_type": "reminder",
+      "schedule_kind": "recurring",
+      "cron_expr": "0 8 * * *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 1
+    },
+    {
+      "id": 2,
+      "name": "Daily Recurring Test",
+      "task_type": "reminder",
+      "schedule_kind": "recurring",
+      "cron_expr": "59 23 * * *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 1
+    },
+    {
+      "id": 3,
+      "name": "One-time Test",
+      "task_type": "reminder",
+      "schedule_kind": "one_time",
+      "cron_expr": "",
+      "timezone": "Asia/Shanghai",
+      "enabled": 0
+    },
+    {
+      "id": 4,
+      "name": "One-time Test",
+      "task_type": "reminder",
+      "schedule_kind": "one_time",
+      "cron_expr": "",
+      "timezone": "Asia/Shanghai",
+      "enabled": 0
+    },
+    {
+      "id": 5,
+      "name": "One-time Test2",
+      "task_type": "reminder",
+      "schedule_kind": "one_time",
+      "cron_expr": "",
+      "timezone": "Asia/Shanghai",
+      "enabled": 0
+    },
+    {
+      "id": 6,
+      "name": "Morning test",
+      "task_type": "reminder",
+      "schedule_kind": "one_time",
+      "cron_expr": "",
+      "timezone": "Asia/Shanghai",
+      "enabled": 0
+    },
+    {
+      "id": 7,
+      "name": "Morning test (copy)",
+      "task_type": "reminder",
+      "schedule_kind": "one_time",
+      "cron_expr": "",
+      "timezone": "Asia/Shanghai",
+      "enabled": 0
+    },
+    {
+      "id": 8,
+      "name": "__anomaly_monitor__",
+      "task_type": "system_status",
+      "schedule_kind": "recurring",
+      "cron_expr": "0 0 1 1 *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 0
+    },
+    {
+      "id": 9,
+      "name": "EdgeAI News Summary Demo",
+      "task_type": "rss_digest",
+      "schedule_kind": "recurring",
+      "cron_expr": "0 8 * * *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 1
+    },
+    {
+      "id": 10,
+      "name": "Daily Previous-Day News Summary",
+      "task_type": "rss_digest",
+      "schedule_kind": "recurring",
+      "cron_expr": "0 10 * * *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 1
+    },
+    {
+      "id": 11,
+      "name": "Lunch Reminder",
+      "task_type": "reminder",
+      "schedule_kind": "recurring",
+      "cron_expr": "0 12 * * *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 1
+    },
+    {
+      "id": 12,
+      "name": "Sleep Reminder",
+      "task_type": "reminder",
+      "schedule_kind": "recurring",
+      "cron_expr": "30 23 * * *",
+      "timezone": "Asia/Shanghai",
+      "enabled": 1
+    }
+  ],
+  "historical_records": {
+    "qwen35_08b": {
+      "timestamp": "2026-05-28T08:58:26.881877+00:00",
+      "scenario": null,
+      "backend": "ollama",
+      "model": "qwen3.5:0.8b",
+      "ok": true,
+      "elapsed_seconds": 74.832,
+      "tokens_per_second": 1.965,
+      "fallback": null,
+      "feed_fallback": null,
+      "decision": null
+    },
+    "qwen25_05b": {
+      "timestamp": "2026-05-28T08:55:18.748773+00:00",
+      "scenario": null,
+      "backend": "ollama",
+      "model": "qwen2.5:0.5b-instruct",
+      "ok": true,
+      "elapsed_seconds": 14.345,
+      "tokens_per_second": 7.983,
+      "fallback": null,
+      "feed_fallback": null,
+      "decision": null
+    },
+    "rules": {
+      "timestamp": "2026-05-25T12:54:27.534878+00:00",
+      "scenario": "rules",
+      "backend": "rules",
+      "model": null,
+      "ok": true,
+      "elapsed_seconds": 0.069,
+      "tokens_per_second": null,
+      "fallback": false,
+      "feed_fallback": false,
+      "decision": "fallback_baseline"
+    },
+    "feed_fallback": {
+      "timestamp": "2026-05-25T12:54:27.945959+00:00",
+      "scenario": "feed_fallback",
+      "backend": "rules",
+      "model": null,
+      "ok": true,
+      "elapsed_seconds": 0.228,
+      "tokens_per_second": null,
+      "fallback": false,
+      "feed_fallback": true,
+      "decision": "required_reliability_path"
+    },
+    "isolation_forest": {
+      "timestamp": "2026-05-25T12:54:28.446267+00:00",
+      "scenario": "isolation_forest",
+      "backend": "sklearn",
+      "model": "IsolationForest",
+      "ok": true,
+      "elapsed_seconds": 0,
+      "tokens_per_second": null,
+      "fallback": false,
+      "feed_fallback": false,
+      "decision": "keep_for_device_health"
+    },
+    "news_eval": [
+      {
+        "timestamp": "2026-05-24T08:47:34.568859+00:00",
+        "scenario": "ollama",
+        "backend": "ollama",
+        "model": "qwen2.5:0.5b-instruct",
+        "ok": true,
+        "elapsed_seconds": 21.125,
+        "tokens_per_second": 6.513,
+        "fallback": false,
+        "feed_fallback": false,
+        "decision": null
+      },
+      {
+        "timestamp": "2026-05-24T08:47:34.576219+00:00",
+        "scenario": "rules",
+        "backend": "rules",
+        "model": null,
+        "ok": true,
+        "elapsed_seconds": 0.007,
+        "tokens_per_second": null,
+        "fallback": false,
+        "feed_fallback": false,
+        "decision": null
+      },
+      {
+        "timestamp": "2026-05-24T08:47:34.928525+00:00",
+        "scenario": "feed_fallback",
+        "backend": "rules",
+        "model": null,
+        "ok": true,
+        "elapsed_seconds": 0.236,
+        "tokens_per_second": null,
+        "fallback": false,
+        "feed_fallback": true,
+        "decision": null
+      }
+    ]
+  }
+}

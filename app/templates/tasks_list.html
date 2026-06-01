@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h2 class="text-2xl font-semibold text-slate-900">Scheduled Tasks</h2>
+    <p class="mt-1 text-sm text-slate-500">Unified view of all scheduled tasks across schedulers on this Edge device.</p>
+  </div>
+  <a href="/tasks/new" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500">
+    <i data-lucide="plus" class="mr-2 h-4 w-4"></i> New Task
+  </a>
+</div>
+
+<div class="mt-4 flex gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+  <i data-lucide="info" class="h-4 w-4 shrink-0 text-slate-400 mt-0.5"></i>
+  <p>This device's system timezone is <strong>Europe/London (BST)</strong>. Tasks display the schedule timezone you configured, but actual execution follows the system clock.</p>
+</div>
+
+{% if warnings %}
+<div class="mt-4 space-y-2">
+  {% for w in warnings %}
+  <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+    <strong>{{ w.source }}</strong> source unavailable: {{ w.message }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="mt-6" x-data="tasksUnified()" x-init="init()">
+  <div class="flex flex-wrap gap-2 mb-4">
+    <button type="button" @click="filter='all'"
+            :class="filter==='all' ? 'bg-indigo-600 text-white' : 'border border-slate-300 bg-white text-slate-700'"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium">
+      All Sources ({{ filter_counts.all }})
+    </button>
+    <button type="button" @click="filter='edge-task-hub'"
+            :class="filter==='edge-task-hub' ? 'bg-indigo-600 text-white' : 'border border-slate-300 bg-white text-slate-700'"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium">
+      Edge Task Hub ({{ filter_counts['edge-task-hub'] }})
+    </button>
+    <button type="button" @click="filter='pi-scheduler'"
+            :class="filter==='pi-scheduler' ? 'bg-indigo-600 text-white' : 'border border-slate-300 bg-white text-slate-700'"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium">
+      pi-scheduler ({{ filter_counts['pi-scheduler'] }})
+    </button>
+    <button type="button" @click="filter='openclaw'"
+            :class="filter==='openclaw' ? 'bg-indigo-600 text-white' : 'border border-slate-300 bg-white text-slate-700'"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium">
+      openclaw ({{ filter_counts.openclaw }})
+    </button>
+    <button type="button" @click="filter='system-cron'"
+            :class="filter==='system-cron' ? 'bg-indigo-600 text-white' : 'border border-slate-300 bg-white text-slate-700'"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium">
+      system-cron ({{ filter_counts['system-cron'] }})
+    </button>
+  </div>
+
+  <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+      <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Source</th>
+          <th class="px-4 py-3">Name</th>
+          <th class="px-4 py-3">Type</th>
+          <th class="px-4 py-3">Schedule</th>
+          <th class="px-4 py-3">Status</th>
+          <th class="px-4 py-3">Last Run</th>
+          <th class="px-4 py-3 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <template x-for="row in filtered" :key="row.task_id ? 'e'+row.task_id : row.source_id + row.name + (row.modal?.external_key || '')">
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3">
+              <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium"
+                    :class="badgeClass(row.source_color)"
+                    x-text="row.source_id === 'edge-task-hub' ? 'Edge Task Hub' : row.source_id"></span>
+            </td>
+            <td class="px-4 py-3 font-medium text-slate-900">
+              <a x-show="row.detail_url" :href="row.detail_url" class="hover:text-indigo-600" x-text="row.name"></a>
+              <span x-show="!row.detail_url" x-text="row.name"></span>
+            </td>
+            <td class="px-4 py-3 capitalize text-slate-600" x-text="row.task_type"></td>
+            <td class="px-4 py-3 text-slate-600" x-text="row.schedule_label"></td>
+            <td class="px-4 py-3">
+              <span x-show="row.enabled" class="text-emerald-600">Enabled</span>
+              <span x-show="!row.enabled" class="text-slate-400">Disabled</span>
+              <span x-show="row.use_ai" class="ml-1 text-xs text-violet-600">· AI</span>
+            </td>
+            <td class="px-4 py-3 text-slate-500">
+              <span x-text="row.last_run_status ? row.last_run_status + ' · ' + (row.last_run_at || '—') : '—'"></span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <template x-if="!row.readonly">
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" @click="toggleEnabled(row)"
+                          class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition"
+                          :class="row.enabled ? 'bg-indigo-600' : 'bg-slate-200'"
+                          :title="row.enabled ? 'Disable task' : 'Enable task'">
+                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition"
+                          :class="row.enabled ? 'translate-x-5' : 'translate-x-0'"></span>
+                  </button>
+                  <a :href="row.edit_url" class="text-indigo-600 hover:underline">Edit</a>
+                  <button type="button" @click="runTask(row)" class="text-slate-600 hover:underline">Run</button>
+                  <button type="button" @click="deleteTask(row)"
+                          class="rounded-lg border border-rose-200 px-2 py-0.5 text-rose-600 hover:bg-rose-50">Delete</button>
+                </div>
+              </template>
+              <button x-show="row.readonly" type="button" @click="openModal(row)"
+                      class="text-indigo-600 hover:underline">View</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <p x-show="filtered.length === 0" class="px-5 py-8 text-center text-sm text-slate-500">No tasks match this filter.</p>
+  </div>
+
+  <!-- External task modal -->
+  <div x-show="modalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" @click.self="modalOpen=false">
+    <div class="max-w-lg w-full rounded-xl bg-white p-6 shadow-xl" @click.stop>
+      <h3 class="text-lg font-semibold text-slate-900" x-text="modalRow?.name"></h3>
+      <p class="mt-1 text-sm text-slate-500">Read-only · managed externally</p>
+      <dl class="mt-4 space-y-3 text-sm">
+        <div><dt class="text-slate-500">Source</dt><dd class="font-medium" x-text="modalRow?.modal?.source_label"></dd></div>
+        <div><dt class="text-slate-500">Config path</dt><dd class="font-mono text-xs break-all" x-text="modalRow?.modal?.config_path"></dd></div>
+        <div><dt class="text-slate-500">Schedule (raw)</dt><dd class="font-mono text-xs" x-text="modalRow?.modal?.schedule_raw"></dd></div>
+        <div x-show="modalRow?.modal?.timezone"><dt class="text-slate-500">Timezone</dt><dd x-text="modalRow?.modal?.timezone"></dd></div>
+        <div x-show="modalRow?.last_run_at"><dt class="text-slate-500">Last run</dt>
+          <dd><span x-text="modalRow?.last_run_status"></span> · <span x-text="modalRow?.last_run_at"></span></dd></div>
+        <div x-show="modalRow?.modal?.last_run_excerpt"><dt class="text-slate-500">Log excerpt</dt>
+          <dd class="text-xs text-slate-600 break-all" x-text="modalRow?.modal?.last_run_excerpt"></dd></div>
+      </dl>
+      <p class="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+        This task is managed by <span x-text="modalRow?.modal?.source_label"></span>. Edit its source file to modify.
+      </p>
+      <button type="button" @click="modalOpen=false"
+              class="mt-4 w-full rounded-lg border border-slate-300 py-2 text-sm hover:bg-slate-50">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function tasksUnified() {
+  const all = {{ unified_json|safe }};
+  return {
+    rows: all,
+    filter: 'all',
+    modalOpen: false,
+    modalRow: null,
+    get filtered() {
+      if (this.filter === 'all') return this.rows;
+      return this.rows.filter(r => r.source_id === this.filter);
+    },
+    badgeClass(color) {
+      const m = {
+        indigo: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/20',
+        amber: 'bg-amber-50 text-amber-800 ring-1 ring-amber-600/20',
+        violet: 'bg-violet-50 text-violet-700 ring-1 ring-violet-600/20',
+        slate: 'bg-slate-100 text-slate-700 ring-1 ring-slate-500/20',
+      };
+      return m[color] || m.slate;
+    },
+    openModal(row) { this.modalRow = row; this.modalOpen = true; },
+    async toggleEnabled(row) {
+      const r = await fetch(`/api/tasks/${row.task_id}/toggle`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+      if (r.ok) { const t = await r.json(); row.enabled = t.enabled; }
+    },
+    async deleteTask(row) {
+      if (!confirm('Delete this task? This cannot be undone.')) return;
+      const r = await fetch(`/api/tasks/${row.task_id}`, { method: 'DELETE' });
+      if (r.ok) { this.rows = this.rows.filter(x => x.task_id !== row.task_id); }
+    },
+    async runTask(row) {
+      await fetch(`/api/tasks/${row.task_id}/run`, { method: 'POST' });
+      alert('Task run started. Check task detail for results.');
+    },
+    init() {}
+  };
+}
+</script>
+{% endblock %}

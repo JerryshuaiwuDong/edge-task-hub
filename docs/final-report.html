@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Edge Task Hub Final Report</title><style>
+    @page { size: A4; margin: 16mm; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #1f2933; line-height: 1.42; font-size: 10.4pt; margin: 0; }
+    h1 { font-size: 23pt; line-height: 1.12; color: #102a43; margin: 0 0 10px; page-break-after: avoid; }
+    h2 { font-size: 14pt; color: #243b53; border-bottom: 1px solid #bcccdc; padding-bottom: 4px; margin-top: 20px; page-break-after: avoid; }
+    h3 { font-size: 11.5pt; color: #334e68; margin-top: 14px; page-break-after: avoid; }
+    p { margin: 6px 0; }
+    ul { margin-top: 5px; padding-left: 18px; }
+    li { margin: 2px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 9px 0 12px; font-size: 8.1pt; page-break-inside: avoid; }
+    th { background: #edf2f7; color: #102a43; text-align: left; }
+    th, td { border: 1px solid #cbd5e1; padding: 4px 5px; vertical-align: top; }
+    pre { background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px; font-size: 8pt; white-space: pre-wrap; }
+    code { font-family: Consolas, Menlo, monospace; font-size: 92%; }
+    </style></head><body><h1>Edge Task Hub: Privacy-Preserving Edge AI Task Automation on Raspberry Pi</h1>
+<p>Authors: to be added before submission</p>
+<p>Generated: 2026-05-29T09:50:15+00:00</p>
+<h2>Abstract</h2>
+<p>This paper presents Edge Task Hub, a Raspberry Pi based Edge AI system for scheduled reminders, daily news summaries, private document summaries, and device-health monitoring. The system is built around a local-first privacy boundary: Feishu is used for message delivery and user input, while news summarization, private document summarization, and anomaly detection run on the Raspberry Pi. The final design selects <code>qwen3:1.7b</code> for quality-first news and document summaries, keeps <code>qwen3:0.6b</code> for shorter local interactions, rejects <code>qwen3.5:0.8b</code> for this workload because of cold-start latency and empty visible output, and keeps deterministic rules plus Isolation Forest as edge-safe fallbacks.</p>
+<h2>1. Introduction</h2>
+<p>The project goal is not to build a general cloud chatbot. The goal is to defend an Edge AI system: a small device collects local data, runs local intelligence, exposes clear scheduling workflows, and sends only the final notification result through Feishu. This matters because the course project must show the edge part of AI, not only the AI part.</p>
+<p>Edge Task Hub uses a Raspberry Pi as the edge device. It runs a FastAPI web service, APScheduler jobs, a SQLite database, Ollama local models, and a scikit-learn Isolation Forest model. Feishu provides the user-facing message channel. The device handles three practical workflows: scheduled reminders, previous-day news summaries, and private document summaries.</p>
+<h2>2. System Design</h2>
+<p>The final architecture separates cloud messaging from local inference:</p>
+<ul><li>Feishu outbound webhook: sends reminders, summaries, and alerts.</li><li>Feishu inbound callback: receives text reminder commands and private document files.</li><li>Local LLM: Ollama generates news and document summaries on the Raspberry Pi.</li><li>Local rules path: deterministic summary fallback when Ollama is stopped or unavailable.</li><li>Local anomaly model: Isolation Forest scores CPU, memory, disk, temperature, and network metrics.</li><li>SQLite: stores tasks, task runs, inbound Feishu events, document summary metadata, and system metrics.</li></ul>
+<p>Current runtime service snapshot:</p>
+<table><thead><tr><th>Service</th><th>State</th></tr></thead><tbody><tr><td>edge-task-hub.service</td><td>active</td></tr><tr><td>ollama.service</td><td>active</td></tr><tr><td>openclaw-gateway.service</td><td>inactive</td></tr></tbody></table>
+<p>Current edge resource snapshot:</p>
+<pre>total        used        free      shared  buff/cache   available
+Mem:           7.6Gi       1.1Gi       1.4Gi       116Mi       5.4Gi       6.5Gi
+Swap:          2.0Gi       253Mi       1.8Gi
+
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/mmcblk0p2   29G   21G  6.9G  75% /</pre>
+<h2>3. Edge AI Methods</h2>
+<h3>3.1 Local LLM Summarization</h3>
+<p>The news and private document flows call Ollama through the local API at <code>127.0.0.1:11434</code>. The final summary model is <code>qwen3:1.7b</code>. The important policy change is that news summary is no longer treated as a strict 30-second live-demo task. A user can wait for a better daily summary, so the system uses a 300-second timeout for summary workflows.</p>
+<p>The final verified qwen3:1.7b news-summary run used the real <code>/api/model/news-summary</code> API. It returned <code>backend=ollama</code>, <code>fallback=false</code>, <code>elapsed_seconds=55.624</code>, and <code>tokens_per_second=2.208</code>.</p>
+<h3>3.2 Deterministic Fallback</h3>
+<p>The rules path is intentionally kept. It is not a replacement for a local LLM, but it protects the edge workflow when the model service is stopped, the model is missing, RSS fails, or available memory is too low. This is an engineering decision: an edge device should expose failure and continue operating when possible.</p>
+<h3>3.3 Isolation Forest for Device Health</h3>
+<p>The Isolation Forest model is used for system monitoring, not for news text. It scores local metrics and provides fast anomaly detection without a cloud call. Current anomaly evidence reports <code>enabled=True</code>, <code>model_trained=True</code>, <code>samples_collected=3465</code>, and <code>anomalies_24h=15</code>.</p>
+<h3>3.4 Private Document Summaries</h3>
+<p>Private files sent through Feishu are downloaded to a temporary directory on the Raspberry Pi. Text is extracted locally from <code>.txt</code>, <code>.md</code>, <code>.docx</code>, and text-based <code>.pdf</code> files. The temporary file is deleted after processing, and the summary is generated locally with <code>qwen3:1.7b</code>. The original document text is not sent to a cloud model.</p>
+<h2>4. Experimental Setup</h2>
+<p>The evaluation used the Raspberry Pi deployment itself, not only a laptop simulation. The core services and configurations are:</p>
+<ul><li>Device: Raspberry Pi running Linux and systemd user services.</li><li>Application stack: FastAPI, Uvicorn, APScheduler, SQLAlchemy, SQLite, Jinja2 UI.</li><li>AI stack: Ollama for local LLM inference and scikit-learn Isolation Forest for anomaly detection.</li><li>Messaging stack: Feishu webhook for outbound messages and Feishu event callback for inbound commands/files.</li><li>Candidate local models: qwen3:1.7b, qwen3:0.6b, qwen3.5:0.8b, qwen2.5:0.5b-instruct, tinyllama, llama3.2:1b.</li><li>Router selected backend at generation time: ollama.</li><li>Router selected model at generation time: qwen3:1.7b.</li></ul>
+<p>Standard scheduled tasks:</p>
+<table><thead><tr><th>Task</th><th>Type</th><th>Schedule</th><th>State</th></tr></thead><tbody><tr><td>EdgeAI News Summary Demo</td><td>rss_digest</td><td>0 8 * * *</td><td>enabled</td></tr><tr><td>Daily Previous-Day News Summary</td><td>rss_digest</td><td>0 10 * * *</td><td>enabled</td></tr><tr><td>Lunch Reminder</td><td>reminder</td><td>0 12 * * *</td><td>enabled</td></tr><tr><td>Sleep Reminder</td><td>reminder</td><td>30 23 * * *</td><td>enabled</td></tr></tbody></table>
+<h2>5. Results</h2>
+<h3>5.1 Model Comparison</h3>
+<table><thead><tr><th>Candidate</th><th>Role</th><th>Decision</th><th>Latency</th><th>Speed</th><th>Evidence</th><th>Quality note</th></tr></thead><tbody><tr><td>qwen3:1.7b</td><td>News and private document summaries</td><td>Selected</td><td>55.624 s</td><td>2.208 tokens/s</td><td>Real API run on the Raspberry Pi, backend=ollama, fallback=false.</td><td>Best final-summary choice because the project now allows waiting for quality instead of forcing a 30-second cold-start target.</td></tr><tr><td>qwen3:0.6b</td><td>Quick local chat and short reminder candidate</td><td>Kept as fast model</td><td>Configured fast path</td><td>Not the final news metric</td><td>Configured as OLLAMA_MODEL and listed in the resource-aware router.</td><td>Useful for short interactions, but the final daily news and private document flows prefer qwen3:1.7b quality.</td></tr><tr><td>qwen3.5:0.8b</td><td>News-summary candidate</td><td>Rejected</td><td>74.832 s</td><td>1.965 tokens/s</td><td>Cold-start benchmark returned an empty visible response before the current think=false handling.</td><td>Too slow and unstable for this project on the Raspberry Pi.</td></tr><tr><td>qwen2.5:0.5b-instruct</td><td>Legacy fast baseline</td><td>Rejected for final summaries</td><td>14.345 s</td><td>7.983 tokens/s</td><td>Fast historical benchmark, but output quality drifted and mistranslated Raspberry Pi in the news task.</td><td>Speed is good, but final project quality is weaker than qwen3:1.7b.</td></tr><tr><td>Rules fallback</td><td>Deterministic fallback</td><td>Kept</td><td>0 s</td><td>N/A</td><td>Used when Ollama is stopped, too slow, or unavailable.</td><td>Not generative AI, but important for reliability on an edge device.</td></tr><tr><td>Isolation Forest</td><td>Device-health anomaly detection</td><td>Kept</td><td>Sub-second per sample</td><td>N/A</td><td>Runs locally on CPU, memory, disk, temperature, and network metrics.</td><td>Matches edge monitoring better than an LLM.</td></tr></tbody></table>
+<h3>5.2 Why qwen3.5:0.8b Timed Out for News Summary</h3>
+<p>The qwen3.5:0.8b result was not rejected only because it was newer or larger. It was rejected because its cold-start behavior was poor on this Raspberry Pi workload. Historical benchmark evidence recorded about 74.832 seconds, only 1.965 tokens per second, and an empty visible response. The most likely cause is a combination of cold model loading, slow generation on the Pi CPU, and Qwen-style internal thinking consuming the limited output budget before user-visible content. The runtime now sends <code>think=false</code>, but the final project still selects <code>qwen3:1.7b</code> because its quality is better for summaries when the user is allowed to wait.</p>
+<h3>5.3 Feishu Automation Results</h3>
+<table><thead><tr><th>Validation item</th><th>Result</th></tr></thead><tbody><tr><td>Feishu URL verification</td><td>Challenge response parser returns the exact challenge string.</td></tr><tr><td>Feishu text reminder</td><td>English commands create scheduled Task rows and register them with the scheduler.</td></tr><tr><td>Private document summary</td><td>.txt, .md, .docx, and text-based .pdf content is extracted locally before summarization.</td></tr><tr><td>News summary timeout policy</td><td>Slow but successful qwen3:1.7b output is accepted instead of falling back only because it exceeds 30 seconds.</td></tr><tr><td>Unit tests</td><td>10 project tests pass on the Raspberry Pi.</td></tr><tr><td>English material scan</td><td>Source comments and generated documents are checked for non-English Chinese characters before submission.</td></tr></tbody></table>
+<h2>6. Discussion</h2>
+<p>The main result is a resource-aware Edge AI architecture. A single &quot;best model&quot; answer would be misleading. The best model depends on the job:</p>
+<ul><li><code>qwen3:1.7b</code> is the best final summary model among the tested local candidates because summary quality matters more than strict generation time.</li><li><code>qwen3:0.6b</code> remains useful for short local prompts and fast interactions.</li><li><code>qwen3.5:0.8b</code> is rejected for this Raspberry Pi news-summary workflow because it was slow and returned empty visible content.</li><li><code>qwen2.5:0.5b-instruct</code> is fast but produced weaker and less reliable summaries.</li><li>Rules and Isolation Forest are kept because edge reliability is part of the project, not a fallback story to hide.</li></ul>
+<p>The privacy argument is also concrete. The device can receive a private file through Feishu, extract its text locally, summarize it with a local model, and send back only the summary. This is a better Edge AI story than uploading the document text to a cloud LLM.</p>
+<h2>7. Limitations</h2>
+<p>The system still has limitations:</p>
+<ul><li>The Feishu inbound app must be configured with app id, app secret, verification token, allowlists, and a public callback URL before external use.</li><li>Local LLM inference on Raspberry Pi remains slow, especially after cold starts.</li><li>The current PDF extraction supports text-based PDFs; scanned PDFs would need OCR, which is not part of the final verified path.</li><li>Model quality is evaluated with project-level evidence and manual inspection, not with a large benchmark dataset.</li><li>Student names and IDs still need to be inserted before final Canvas submission.</li></ul>
+<h2>8. Conclusion</h2>
+<p>Edge Task Hub demonstrates Edge AI by running useful intelligence directly on a Raspberry Pi: local LLM summaries, local private document processing, local anomaly detection, and local scheduling decisions. Feishu is used as the notification and command interface, but the privacy-sensitive inference work remains on the edge device. The final system is stronger after rejecting a strict 30-second summary policy: daily news and private document summaries can wait for the higher-quality <code>qwen3:1.7b</code> model, while shorter interactions and fallback paths remain available for reliability.</p>
+<h2>References</h2>
+<p>[1] Ollama local model runtime, https://ollama.com</p>
+<p>[2] FastAPI web framework, https://fastapi.tiangolo.com</p>
+<p>[3] APScheduler documentation, https://apscheduler.readthedocs.io</p>
+<p>[4] scikit-learn IsolationForest documentation, https://scikit-learn.org</p>
+<p>[5] Raspberry Pi documentation, https://www.raspberrypi.com/documentation/</p></body></html>

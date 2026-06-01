@@ -1,0 +1,30 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data generated on the Raspberry Pi
+data/*
+!data/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+*.pkl
+
+# Local logs and temporary files
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Internal working notes
+task_plan.md

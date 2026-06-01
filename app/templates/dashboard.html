@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Active Tasks</p>
+    <p class="mt-2 text-3xl font-semibold text-slate-900">{{ stats.active_tasks }}</p>
+    <p class="mt-1 text-xs text-slate-400">All schedulers (enabled)</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Runs Today</p>
+    <p class="mt-2 text-3xl font-semibold text-slate-900">{{ stats.runs_today }}</p>
+    <p class="mt-1 text-xs text-slate-400">Tasks{% if stats.anomaly_runs_today %} · {{ stats.anomaly_runs_today }} anomaly alert(s){% endif %}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Success Rate (7d)</p>
+    <p class="mt-2 text-3xl font-semibold text-slate-900">{{ stats.success_rate }}%</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-sm text-slate-500">Next Scheduled</p>
+    <p class="mt-2 text-lg font-semibold text-slate-900 truncate">{{ stats.next_scheduled }}</p>
+  </div>
+</div>
+
+<div class="mt-8 grid gap-6 lg:grid-cols-2">
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 class="text-sm font-semibold text-slate-900">Daily Executions (7 days)</h2>
+    <p class="text-xs text-slate-400 mt-1">Edge Task Hub runs</p>
+    <canvas id="dailyChart" class="mt-4 h-64 w-full"></canvas>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 class="text-sm font-semibold text-slate-900">Tasks by Source</h2>
+    <canvas id="sourceChart" class="mt-4 h-64 w-full"></canvas>
+  </div>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-200 px-5 py-4">
+    <h2 class="text-sm font-semibold text-slate-900">Recent Activity</h2>
+    <p class="text-xs text-slate-400 mt-1">Edge Task Hub + pi-automation-scheduler</p>
+  </div>
+  <div class="divide-y divide-slate-100" id="recentActivity"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const daily = {{ daily_json|safe }};
+const sources = {{ source_dist_json|safe }};
+const recent = {{ recent_json|safe }};
+
+new Chart(document.getElementById('dailyChart'), {
+  type: 'bar',
+  data: {
+    labels: daily.map(d => d.date),
+    datasets: [{ label: 'Runs', data: daily.map(d => d.count), backgroundColor: '#4f46e5', borderRadius: 6 }]
+  },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+new Chart(document.getElementById('sourceChart'), {
+  type: 'doughnut',
+  data: {
+    labels: sources.map(s => s.type),
+    datasets: [{ data: sources.map(s => s.count), backgroundColor: sources.map(s => s.color) }]
+  },
+  options: { plugins: { legend: { position: 'bottom' } } }
+});
+
+const badgeColors = {
+  'edge-task-hub': 'bg-indigo-50 text-indigo-700',
+  'pi-scheduler': 'bg-amber-50 text-amber-800',
+  'openclaw': 'bg-violet-50 text-violet-700',
+  'system-cron': 'bg-slate-100 text-slate-700',
+};
+const container = document.getElementById('recentActivity');
+if (!recent.length) {
+  container.innerHTML = '<p class="px-5 py-8 text-center text-sm text-slate-500">No activity yet.</p>';
+} else {
+  container.innerHTML = recent.map(r => `
+    <div class="flex items-center justify-between px-5 py-3 text-sm">
+      <div>
+        <p class="font-medium text-slate-900">${r.task_name}</p>
+        <span class="inline-flex rounded-full px-2 py-0.5 text-xs ${badgeColors[r.source_id] || badgeColors['system-cron']}">${r.source_label}</span>
+        <p class="text-xs text-slate-400 mt-1" data-relative-time="${r.started_at}"></p>
+      </div>
+      <span class="rounded-full px-2.5 py-0.5 text-xs font-medium ${r.status==='success'?'bg-emerald-50 text-emerald-700':r.status==='failed'?'bg-rose-50 text-rose-700':'bg-sky-50 text-sky-700'}">${r.status}</span>
+    </div>
+  `).join('');
+  document.querySelectorAll('[data-relative-time]').forEach(el => {
+    if (window.relativeTime) el.textContent = relativeTime(el.dataset.relativeTime);
+  });
+}
+</script>
+{% endblock %}

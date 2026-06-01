@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+  <h2 class="text-2xl font-semibold text-slate-900">Scheduler Sources</h2>
+  <p class="mt-1 text-sm text-slate-500">All task schedulers known to this Edge device. External sources are read-only here.</p>
+</div>
+
+{% if warnings %}
+<div class="mt-4 space-y-2">
+  {% for w in warnings %}
+  <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+    {{ w.source }}: {{ w.message }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="mt-6 space-y-4" x-data="{ open: null }">
+  {% for s in catalog %}
+  <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium
+          {% if s.source_color == 'indigo' %}bg-indigo-50 text-indigo-700
+          {% elif s.source_color == 'amber' %}bg-amber-50 text-amber-800
+          {% elif s.source_color == 'violet' %}bg-violet-50 text-violet-700
+          {% else %}bg-slate-100 text-slate-700{% endif %}">
+          {{ s.source_label }}
+        </span>
+        <span class="text-sm {% if s.status in ('active','running') %}text-emerald-600{% else %}text-slate-500{% endif %}">{{ s.status }}</span>
+        <span class="text-sm text-slate-500">{{ s.enabled_count }} enabled / {{ s.task_count }} tasks</span>
+      </div>
+      <button type="button" @click="open = open === '{{ s.source_id }}' ? null : '{{ s.source_id }}'"
+              class="text-sm text-indigo-600 hover:underline">View</button>
+    </div>
+    <div x-show="open === '{{ s.source_id }}'" x-cloak class="border-t border-slate-100 bg-slate-50 px-4 py-4 text-sm">
+      <p class="text-xs text-slate-500">Config: <code>{{ s.config_path }}</code></p>
+      {% if s.service_unit %}<p class="text-xs text-slate-500 mt-1">Service: {{ s.service_unit }}</p>{% endif %}
+      <p class="text-xs text-slate-500 mt-1">{{ s.status_detail }}</p>
+      {% set tasks = external_by_source.get(s.source_id, []) %}
+      {% if tasks %}
+      <ul class="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+        {% for t in tasks %}
+        <li class="flex justify-between px-3 py-2">
+          <span class="font-medium text-slate-800">{{ t.name }}</span>
+          <span class="text-slate-500 text-xs">{{ t.schedule_display }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="mt-2 text-slate-500">No tasks configured.</p>
+      {% endif %}
+      {% if log_previews.get(s.source_id) %}
+      <div class="mt-4">
+        <p class="text-xs font-medium text-slate-600">Log preview (last 20 lines)</p>
+        <pre class="mt-1 max-h-48 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-300">{{ log_previews[s.source_id] }}</pre>
+      </div>
+      {% endif %}
+      {% if s.readonly %}
+      <p class="mt-3 text-xs text-slate-500">Read-only in Edge Task Hub. Edit the source config file to change tasks.</p>
+      {% else %}
+      <a href="/tasks" class="mt-3 inline-block text-indigo-600 hover:underline text-sm">Manage tasks →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+<div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+  <div class="flex items-start justify-between">
+    <div>
+      <p class="text-sm font-medium text-slate-500">{{ label }}</p>
+      <p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ value }}</p>
+      {% if caption %}<p class="mt-1 text-xs text-slate-400">{{ caption }}</p>{% endif %}
+    </div>
+    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+      <i data-lucide="{{ icon }}" class="h-5 w-5"></i>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[1fr_22rem]" x-data="modelChat()" x-init="loadStatus()">
+  <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-xl font-semibold text-slate-900">Local Model Chat</h2>
+        <p class="mt-1 text-sm text-slate-500">Ask the model running on this Raspberry Pi. Services are never auto-started.</p>
+      </div>
+      <select x-model="backend" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <option value="ollama">Ollama direct</option>
+        <option value="openclaw">OpenClaw agent</option>
+      </select>
+    </div>
+
+    <div class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600" x-show="!selectedRunning()">
+      <p class="font-medium text-amber-700" x-text="backend === 'ollama' ? 'Ollama is not running.' : 'OpenClaw Gateway is not running.'"></p>
+      <p class="mt-1">Start it on demand from a terminal:</p>
+      <pre class="mt-2 overflow-auto rounded bg-slate-900 p-3 text-slate-100" x-text="backend === 'ollama' ? commands.start_ollama : commands.start_openclaw"></pre>
+    </div>
+
+    <form class="mt-5 space-y-4" @submit.prevent="sendChat()">
+      <textarea x-model="message" rows="7"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Explain in three bullet points how the edge device interacts with the local model."></textarea>
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="text-sm text-slate-600">Timeout
+          <input type="number" min="5" max="300" x-model.number="timeout"
+                 class="ml-2 w-20 rounded-lg border border-slate-300 px-2 py-1 text-sm"> s
+        </label>
+        <label class="text-sm text-slate-600">Max tokens
+          <input type="number" min="16" max="1024" x-model.number="maxTokens"
+                 class="ml-2 w-24 rounded-lg border border-slate-300 px-2 py-1 text-sm">
+        </label>
+        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+                :disabled="loading">
+          <span x-text="loading ? 'Running...' : 'Send'"></span>
+        </button>
+        <button type="button" class="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                @click="loadStatus()">Refresh Status</button>
+      </div>
+    </form>
+
+    <div class="mt-6" x-show="result">
+      <h3 class="text-sm font-semibold text-slate-900">Result</h3>
+      <div class="mt-2 rounded-lg border p-4 text-sm"
+           :class="result && result.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-rose-200 bg-rose-50 text-rose-950'">
+        <p class="text-xs font-medium" x-text="resultMeta()"></p>
+        <pre class="mt-3 whitespace-pre-wrap font-sans leading-6" x-text="resultText()"></pre>
+      </div>
+    </div>
+  </section>
+
+  <aside class="space-y-4">
+    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-slate-900">Backend Status</h3>
+      <dl class="mt-3 space-y-3 text-sm">
+        <div class="flex justify-between gap-3">
+          <dt class="text-slate-500">Ollama</dt>
+          <dd x-text="status.ollama?.running ? 'running' : 'stopped'"
+              :class="status.ollama?.running ? 'text-emerald-600' : 'text-slate-500'"></dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-slate-500">OpenClaw</dt>
+          <dd x-text="status.openclaw?.running ? 'running' : 'stopped'"
+              :class="status.openclaw?.running ? 'text-emerald-600' : 'text-slate-500'"></dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-slate-500">Model</dt>
+          <dd class="text-right text-slate-700" x-text="status.ollama?.model || '—'"></dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-slate-500">Target</dt>
+          <dd class="text-slate-700" x-text="`${status.speed_target_seconds || 30}s`"></dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-slate-900">Candidate Models</h3>
+      <ul class="mt-3 space-y-2 text-sm text-slate-600">
+        <template x-for="model in status.candidate_models || []" :key="model">
+          <li class="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs" x-text="model"></li>
+        </template>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function modelChat() {
+  return {
+    backend: 'ollama',
+    message: '',
+    timeout: 30,
+    maxTokens: 256,
+    loading: false,
+    result: null,
+    status: {},
+    commands: {},
+    async loadStatus() {
+      const response = await fetch('/api/model/status');
+      this.status = await response.json();
+      this.commands = this.status.commands || {};
+      this.timeout = this.status.speed_target_seconds || 30;
+    },
+    selectedRunning() {
+      return this.backend === 'ollama' ? this.status.ollama?.running : this.status.openclaw?.running;
+    },
+    async sendChat() {
+      this.loading = true;
+      this.result = null;
+      try {
+        const response = await fetch('/api/model/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            backend: this.backend,
+            message: this.message,
+            timeout: this.timeout,
+            max_tokens: this.maxTokens
+          })
+        });
+        this.result = await response.json();
+      } finally {
+        this.loading = false;
+        this.loadStatus();
+      }
+    },
+    resultMeta() {
+      if (!this.result) return '';
+      return `${this.result.backend} · ${this.result.model || 'model'} · ${this.result.elapsed_seconds}s`;
+    },
+    resultText() {
+      if (!this.result) return '';
+      return this.result.ok ? (this.result.text || '(empty response)') : (this.result.error || 'Request failed');
+    }
+  };
+}
+</script>
+{% endblock %}

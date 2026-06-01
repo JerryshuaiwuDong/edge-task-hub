@@ -1,0 +1,12 @@
+/* Edge Task Hub custom tweaks */
+[x-cloak] { display: none !important; }
+
+.sidebar-link.active {
+  background-color: rgb(238 242 255);
+  color: rgb(79 70 229);
+  font-weight: 500;
+}
+
+.gauge-value {
+  font-variant-numeric: tabular-nums;
+}
