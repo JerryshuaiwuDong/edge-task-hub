@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T09:50:15+00:00",
+  "generated_at": "2026-06-01T11:11:50+00:00",
   "manual_final_news_run": {
     "timestamp": "2026-05-29",
     "scenario": "final_news_summary_api",
@@ -48,15 +48,15 @@
       "tokens_per_second": 1.965
     },
     "router": {
-      "timestamp": "2026-05-29T09:50:15.566107Z",
+      "timestamp": "2026-06-01T11:11:50.049640Z",
       "snapshot": {
-        "memory_percent": 14.5,
-        "memory_available_mb": 6678.3,
-        "swap_percent": 12.4,
-        "disk_percent": 74.8,
-        "disk_free_gb": 6.84,
+        "memory_percent": 12.2,
+        "memory_available_mb": 6860.2,
+        "swap_percent": 4.9,
+        "disk_percent": 77.1,
+        "disk_free_gb": 6.22,
         "disk_total_gb": 28.68,
-        "disk_used_gb": 20.36,
+        "disk_used_gb": 20.98,
         "ollama_running": true
       },
       "installed_models": [
@@ -155,19 +155,19 @@
     "enabled": true,
     "sklearn_available": true,
     "model_trained": true,
-    "samples_collected": 3465,
-    "anomalies_24h": 15
+    "samples_collected": 4345,
+    "anomalies_24h": 82
   },
   "system_snapshot": {
-    "timestamp": "2026-05-29T09:50:15.606752+00:00",
+    "timestamp": "2026-06-01T11:11:50.093227+00:00",
     "cpu_percent": 0.0,
-    "memory_percent": 14.5,
-    "memory_used_gb": 1.11,
+    "memory_percent": 12.2,
+    "memory_used_gb": 0.93,
     "memory_total_gb": 7.63,
-    "disk_percent": 74.8,
-    "disk_used_gb": 20.36,
+    "disk_percent": 77.1,
+    "disk_used_gb": 20.98,
     "disk_total_gb": 28.68,
-    "cpu_temp_c": 55.0
+    "cpu_temp_c": 53.1
   },
   "service_status": {
     "edge_task_hub": "active",
@@ -175,8 +175,8 @@
     "openclaw_gateway": "inactive"
   },
   "resources": {
-    "memory": "total        used        free      shared  buff/cache   available\nMem:           7.6Gi       1.1Gi       1.4Gi       116Mi       5.4Gi       6.5Gi\nSwap:          2.0Gi       253Mi       1.8Gi",
-    "disk": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/mmcblk0p2   29G   21G  6.9G  75% /"
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           7.6Gi       951Mi       710Mi        41Mi       6.2Gi       6.7Gi\nSwap:          2.0Gi       100Mi       1.9Gi",
+    "disk": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/mmcblk0p2   29G   21G  6.3G  78% /"
   },
   "tasks": [
     {

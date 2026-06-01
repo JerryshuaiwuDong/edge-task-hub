@@ -52,13 +52,24 @@ FINAL_NEWS_EVIDENCE = {
 
 MODEL_ROWS = [
     {
+        "candidate": "qwen3.5:2b",
+        "role": "Large local LLM baseline",
+        "decision": "Rejected before final inference",
+        "elapsed": "Pull stalled and regressed",
+        "speed": "N/A",
+        "evidence": "Download attempts reached partial progress and then became unstable on the Pi, while the model blob increased storage pressure.",
+        "quality": "A larger model may improve language quality, but it is not useful if the edge device cannot install and operate it reliably.",
+        "constraint": "Storage and deployment stability",
+    },
+    {
         "candidate": "qwen3:1.7b",
         "role": "News and private document summaries",
         "decision": "Selected",
         "elapsed": "55.624 s",
         "speed": "2.208 tokens/s",
         "evidence": "Real API run on the Raspberry Pi, backend=ollama, fallback=false.",
-        "quality": "Best final-summary choice because the project now allows waiting for quality instead of forcing a 30-second cold-start target.",
+        "quality": "Best final-summary choice because daily news and private document summaries can wait for better local output.",
+        "constraint": "Quality-first local summarization",
     },
     {
         "candidate": "qwen3:0.6b",
@@ -68,15 +79,17 @@ MODEL_ROWS = [
         "speed": "Not the final news metric",
         "evidence": "Configured as OLLAMA_MODEL and listed in the resource-aware router.",
         "quality": "Useful for short interactions, but the final daily news and private document flows prefer qwen3:1.7b quality.",
+        "constraint": "Low-latency lightweight prompts",
     },
     {
         "candidate": "qwen3.5:0.8b",
-        "role": "News-summary candidate",
+        "role": "Quantized Ollama summary candidate",
         "decision": "Rejected",
-        "elapsed": "74.832 s",
-        "speed": "1.965 tokens/s",
-        "evidence": "Cold-start benchmark returned an empty visible response before the current think=false handling.",
-        "quality": "Too slow and unstable for this project on the Raspberry Pi.",
+        "elapsed": "52-75 s",
+        "speed": "about 2 tokens/s",
+        "evidence": "Cold-start runs around 52.043 s to 74.832 s returned empty or length-limited visible output before the final policy.",
+        "quality": "Quantization helped the model fit better than a 2B candidate, but cold-start latency and visible-output quality were still poor for this Pi workload.",
+        "constraint": "Memory pressure and cold-start latency",
     },
     {
         "candidate": "qwen2.5:0.5b-instruct",
@@ -86,24 +99,27 @@ MODEL_ROWS = [
         "speed": "7.983 tokens/s",
         "evidence": "Fast historical benchmark, but output quality drifted and mistranslated Raspberry Pi in the news task.",
         "quality": "Speed is good, but final project quality is weaker than qwen3:1.7b.",
+        "constraint": "Quality loss from very small LLM",
     },
     {
         "candidate": "Rules fallback",
-        "role": "Deterministic fallback",
+        "role": "Program model for deterministic fallback",
         "decision": "Kept",
         "elapsed": "0 s",
         "speed": "N/A",
         "evidence": "Used when Ollama is stopped, too slow, or unavailable.",
-        "quality": "Not generative AI, but important for reliability on an edge device.",
+        "quality": "Not a generative LLM, but a local program model keeps the edge workflow reliable and explainable.",
+        "constraint": "Reliability under failure",
     },
     {
         "candidate": "Isolation Forest",
-        "role": "Device-health anomaly detection",
+        "role": "Classical ML model for device health",
         "decision": "Kept",
         "elapsed": "Sub-second per sample",
         "speed": "N/A",
         "evidence": "Runs locally on CPU, memory, disk, temperature, and network metrics.",
-        "quality": "Matches edge monitoring better than an LLM.",
+        "quality": "A lightweight statistical model is a better fit than an LLM for edge resource monitoring.",
+        "constraint": "Fast local metric scoring",
     },
 ]
 
@@ -267,7 +283,7 @@ def task_table(tasks: list[dict[str, Any]]) -> str:
 
 def model_table() -> str:
     return md_table(
-        ["Candidate", "Role", "Decision", "Latency", "Speed", "Evidence", "Quality note"],
+        ["Candidate", "Role", "Decision", "Latency", "Speed", "Edge constraint", "Quality note"],
         [
             [
                 row["candidate"],
@@ -275,10 +291,33 @@ def model_table() -> str:
                 row["decision"],
                 row["elapsed"],
                 row["speed"],
-                row["evidence"],
+                row["constraint"],
                 row["quality"],
             ]
             for row in MODEL_ROWS
+        ],
+    )
+
+
+def model_decision_table() -> str:
+    return md_table(
+        ["Candidate", "Constraint exposed", "Evidence", "Decision"],
+        [
+            [row["candidate"], row["constraint"], row["evidence"], row["decision"]]
+            for row in MODEL_ROWS
+        ],
+    )
+
+
+def final_stack_table() -> str:
+    return md_table(
+        ["Local intelligence", "Job", "Why this belongs on the edge"],
+        [
+            ["qwen3:1.7b", "Daily news and private document summaries", "Quality matters more than strict live latency, and private text stays on the Pi."],
+            ["qwen3:0.6b", "Short local prompts and quick interactions", "Small enough for lower-latency edge interaction when a long summary is not needed."],
+            ["Rules fallback", "RSS failure, missing model, or unavailable Ollama", "Deterministic local behavior keeps the user workflow alive and auditable."],
+            ["Isolation Forest", "CPU, memory, disk, temperature, and network anomaly detection", "A compact program model scores device health locally without cloud inference."],
+            ["APScheduler plus SQLite", "Reminder creation and execution", "The device owns the schedule and can remind through Feishu at the right time."],
         ],
     )
 
@@ -305,7 +344,7 @@ def build_report(evidence: dict[str, Any]) -> str:
         ],
     )
 
-    md = f"""# Edge Task Hub: Privacy-Preserving Edge AI Task Automation on Raspberry Pi
+    md = f"""# Edge Task Hub: Resource-Aware Edge AI Automation on Raspberry Pi
 
 Authors: to be added before submission
 
@@ -313,26 +352,37 @@ Generated: {evidence['generated_at']}
 
 ## Abstract
 
-This paper presents Edge Task Hub, a Raspberry Pi based Edge AI system for scheduled reminders, daily news summaries, private document summaries, and device-health monitoring. The system is built around a local-first privacy boundary: Feishu is used for message delivery and user input, while news summarization, private document summarization, and anomaly detection run on the Raspberry Pi. The final design selects `qwen3:1.7b` for quality-first news and document summaries, keeps `qwen3:0.6b` for shorter local interactions, rejects `qwen3.5:0.8b` for this workload because of cold-start latency and empty visible output, and keeps deterministic rules plus Isolation Forest as edge-safe fallbacks.
+This paper presents Edge Task Hub, a Raspberry Pi based Edge AI system for scheduled reminders, daily news summaries, private document summaries, and device-health monitoring. The main research question is not "which LLM is newest"; it is "which local intelligence can run reliably on a small edge device while keeping private data local." We tested a larger 2B-size Qwen candidate, quantized Ollama models, a very small fast model, deterministic program rules, and a classical Isolation Forest model. The final design selects `qwen3:1.7b` for quality-first news and document summaries, keeps `qwen3:0.6b` for short prompts, rejects `qwen3.5:0.8b` for this Pi workload because of cold-start latency and empty or length-limited output, and keeps rules plus Isolation Forest because Edge AI also needs reliability and device awareness.
 
 ## 1. Introduction
 
-The project goal is not to build a general cloud chatbot. The goal is to defend an Edge AI system: a small device collects local data, runs local intelligence, exposes clear scheduling workflows, and sends only the final notification result through Feishu. This matters because the course project must show the edge part of AI, not only the AI part.
+This project was built for an Edge AI course, so the important contribution must be the edge design. A normal cloud chatbot can call a large remote model and ignore memory, storage, cold start, and privacy. Edge Task Hub does the opposite. It uses a Raspberry Pi as the decision point, runs local models when possible, records failures, and sends only finished results through Feishu.
 
-Edge Task Hub uses a Raspberry Pi as the edge device. It runs a FastAPI web service, APScheduler jobs, a SQLite database, Ollama local models, and a scikit-learn Isolation Forest model. Feishu provides the user-facing message channel. The device handles three practical workflows: scheduled reminders, previous-day news summaries, and private document summaries.
+The first version of the idea was simple: run a local model to summarize news and send reminders. That was not enough for a strong Edge AI defense. A Raspberry Pi is not a cloud GPU server. It has limited RAM, limited SD-card storage, slow cold starts, and a user who still expects the system to remind them even if a model is unavailable. The project therefore evolved from "use an LLM" into "choose the right local model or program model for each edge job."
 
-## 2. System Design
+The system now supports three user workflows. It creates scheduled reminders through Feishu text commands, generates a previous-day news summary each morning, and summarizes private files sent through Feishu. It also monitors its own CPU, memory, disk, temperature, and network metrics with a local anomaly model.
 
-The final architecture separates cloud messaging from local inference:
+The paper focuses on experimental setup, results, and analysis, as required by the presentation instructions. Background is kept short because the course requirement is to defend the Edge AI part.
+
+## 2. Edge AI Requirements
+
+The system was designed around five edge requirements:
 
 {bullet([
-    "Feishu outbound webhook: sends reminders, summaries, and alerts.",
-    "Feishu inbound callback: receives text reminder commands and private document files.",
-    "Local LLM: Ollama generates news and document summaries on the Raspberry Pi.",
-    "Local rules path: deterministic summary fallback when Ollama is stopped or unavailable.",
-    "Local anomaly model: Isolation Forest scores CPU, memory, disk, temperature, and network metrics.",
-    "SQLite: stores tasks, task runs, inbound Feishu events, document summary metadata, and system metrics.",
+    "Privacy: private document text should be processed on the Raspberry Pi, not uploaded to a cloud LLM.",
+    "Memory: model selection must respect the actual RAM pressure of the device.",
+    "Storage: a model that cannot be installed cleanly on the SD card is not a usable edge model.",
+    "Latency policy: reminders need punctual delivery, but daily news and private document summaries can wait for better quality.",
+    "Reliability: when an LLM fails, the device should expose the failure and still provide deterministic behavior when possible.",
 ])}
+
+These requirements explain why the final project uses more than one model. Edge AI is not only about a large neural model. It is about local decision making under device constraints. In this project, LLMs handle language, program rules handle deterministic fallback, and Isolation Forest handles device health.
+
+## 3. System Architecture
+
+The final architecture separates cloud messaging from local inference. Feishu is the user interface. The Raspberry Pi is the intelligence boundary.
+
+{final_stack_table()}
 
 Current runtime service snapshot:
 
@@ -346,38 +396,34 @@ Current edge resource snapshot:
 {resources.get("disk")}
 ```
 
-## 3. Edge AI Methods
-
-### 3.1 Local LLM Summarization
-
-The news and private document flows call Ollama through the local API at `127.0.0.1:11434`. The final summary model is `qwen3:1.7b`. The important policy change is that news summary is no longer treated as a strict 30-second live-demo task. A user can wait for a better daily summary, so the system uses a 300-second timeout for summary workflows.
-
-The final verified qwen3:1.7b news-summary run used the real `/api/model/news-summary` API. It returned `backend=ollama`, `fallback=false`, `elapsed_seconds=55.624`, and `tokens_per_second=2.208`.
-
-### 3.2 Deterministic Fallback
-
-The rules path is intentionally kept. It is not a replacement for a local LLM, but it protects the edge workflow when the model service is stopped, the model is missing, RSS fails, or available memory is too low. This is an engineering decision: an edge device should expose failure and continue operating when possible.
-
-### 3.3 Isolation Forest for Device Health
-
-The Isolation Forest model is used for system monitoring, not for news text. It scores local metrics and provides fast anomaly detection without a cloud call. Current anomaly evidence reports `enabled={anomaly.get('enabled', 'unknown')}`, `model_trained={anomaly.get('model_trained', 'unknown')}`, `samples_collected={anomaly.get('samples_collected', 'unknown')}`, and `anomalies_24h={anomaly.get('anomalies_24h', 'unknown')}`.
-
-### 3.4 Private Document Summaries
-
-Private files sent through Feishu are downloaded to a temporary directory on the Raspberry Pi. Text is extracted locally from `.txt`, `.md`, `.docx`, and text-based `.pdf` files. The temporary file is deleted after processing, and the summary is generated locally with `qwen3:1.7b`. The original document text is not sent to a cloud model.
+The core software stack is FastAPI, APScheduler, SQLite, Ollama, and scikit-learn. FastAPI exposes the local service and Feishu callback endpoints. APScheduler owns the reminder and summary timing. SQLite records tasks, runs, events, document summary metadata, and system metrics. Ollama runs local language models. Isolation Forest scores system-health metrics.
 
 ## 4. Experimental Setup
 
-The evaluation used the Raspberry Pi deployment itself, not only a laptop simulation. The core services and configurations are:
+The evaluation used the deployed Raspberry Pi instead of only a laptop simulation. This matters because model behavior on the Pi is dominated by real edge limits: RAM, SD-card space, CPU speed, and cold model loading.
+
+The tested intelligence options were:
+
+{bullet([
+    "A larger 2B-size Qwen candidate, used to test whether a stronger LLM was practical on this edge device.",
+    "`qwen3.5:0.8b`, a quantized Ollama candidate expected to fit better than the 2B-size model.",
+    "`qwen2.5:0.5b-instruct`, a very small fast baseline.",
+    "`qwen3:1.7b`, the final quality-first model for summary workflows.",
+    "`qwen3:0.6b`, a lightweight model kept for quick prompts.",
+    "Rules, a deterministic program model used when generative inference is unavailable.",
+    "Isolation Forest, a classical local ML model used for device-health anomaly detection.",
+])}
+
+Application and runtime setup:
 
 {bullet([
     "Device: Raspberry Pi running Linux and systemd user services.",
-    "Application stack: FastAPI, Uvicorn, APScheduler, SQLAlchemy, SQLite, Jinja2 UI.",
+    "Application stack: FastAPI, Uvicorn, APScheduler, SQLAlchemy, SQLite, and Jinja2 UI.",
     "AI stack: Ollama for local LLM inference and scikit-learn Isolation Forest for anomaly detection.",
-    "Messaging stack: Feishu webhook for outbound messages and Feishu event callback for inbound commands/files.",
-    f"Candidate local models: {candidates}.",
-    f"Router selected backend at generation time: {selected_backend}.",
-    f"Router selected model at generation time: {selected_model}.",
+    "Messaging stack: Feishu webhook for outbound messages and Feishu event callback for inbound commands and files.",
+    f"Candidate local models visible to the router: {candidates}.",
+    f"Router selected backend at report generation time: {selected_backend}.",
+    f"Router selected model at report generation time: {selected_model}.",
 ])}
 
 Standard scheduled tasks:
@@ -386,33 +432,67 @@ Standard scheduled tasks:
 
 ## 5. Results
 
-### 5.1 Model Comparison
+### 5.1 Model Exploration Logic
 
-{model_table()}
+The model exploration followed a practical edge sequence. First, we tried to move toward a larger model because larger LLMs usually preserve facts and produce better summaries. The 2B-size candidate exposed the first edge problem: the Pi did not only need enough theoretical RAM, it also needed stable download, storage, and startup behavior. A model that is too hard to install is not a valid edge deployment choice.
 
-### 5.2 Why qwen3.5:0.8b Timed Out for News Summary
+Second, we tested a quantized Ollama model, `qwen3.5:0.8b`. Quantization is important for Edge AI because it reduces model size and memory pressure. However, the benchmark still showed about 52 to 75 seconds of cold-start generation at about 2 tokens per second, with empty or length-limited visible output. This means quantization improved deployability but did not fully solve cold-start and output-quality problems.
 
-The qwen3.5:0.8b result was not rejected only because it was newer or larger. It was rejected because its cold-start behavior was poor on this Raspberry Pi workload. Historical benchmark evidence recorded about 74.832 seconds, only 1.965 tokens per second, and an empty visible response. The most likely cause is a combination of cold model loading, slow generation on the Pi CPU, and Qwen-style internal thinking consuming the limited output budget before user-visible content. The runtime now sends `think=false`, but the final project still selects `qwen3:1.7b` because its quality is better for summaries when the user is allowed to wait.
+Third, we tested `qwen2.5:0.5b-instruct`. It was much faster, with a recorded 14.345-second run at 7.983 tokens per second, but summary quality was weaker and included semantic drift. This showed the opposite edge failure: a model can fit the device and still be too weak for the user-facing task.
 
-### 5.3 Feishu Automation Results
+Finally, we changed the policy. News summary is not a strict real-time generation task. The user wants a useful previous-day summary at 10:00, and the system can wait for better output. The final system therefore selects `qwen3:1.7b` for daily news and private document summaries, while keeping `qwen3:0.6b` for shorter interactions.
+
+### 5.2 Model Results
+
+{model_decision_table()}
+
+### 5.3 Final News Summary Result
+
+The final verified `qwen3:1.7b` news-summary run used the real `/api/model/news-summary` endpoint on the Raspberry Pi. It returned `backend=ollama`, `fallback=false`, `elapsed_seconds=55.624`, and `tokens_per_second=2.208`.
+
+This is not the fastest result, but it is the right result for the chosen edge workflow. Daily news summaries and private document summaries are allowed to wait. A strict short timeout would make the system look faster in a demo but would reduce summary quality and hide the real edge tradeoff.
+
+### 5.4 Why `qwen3.5:0.8b` Cold-Started Too Slowly
+
+The `qwen3.5:0.8b` issue is an important Edge AI lesson. A quantized model is smaller, but it is not automatically better for every edge workload. The recorded cold-start runs took about 52.043 seconds to 74.832 seconds, produced about 2 tokens per second, and returned empty or length-limited visible output in the news-summary style task.
+
+The likely causes are combined:
+
+{bullet([
+    "Cold loading: the model must be loaded into memory before useful generation starts.",
+    "CPU generation speed: the Raspberry Pi CPU produces tokens slowly compared with a GPU or cloud service.",
+    "Output-budget behavior: Qwen-style thinking can consume tokens before user-visible summary content appears.",
+    "Memory pressure: one benchmark showed available memory dropping significantly during the run, which is exactly the kind of constraint an edge system must respect.",
+])}
+
+The runtime now uses `think=false` for Qwen-style models, but the final design still rejects this model for daily news summaries because the project has a better fit: `qwen3:1.7b` for waitable quality output and `qwen3:0.6b` for fast short prompts.
+
+### 5.5 Feishu Automation Results
 
 {validation_rows}
 
-## 6. Discussion
+### 5.6 Local Device-Health Model
 
-The main result is a resource-aware Edge AI architecture. A single "best model" answer would be misleading. The best model depends on the job:
+The Isolation Forest model is not a language model, but it is still part of the Edge AI design. It runs locally on system metrics and detects abnormal device behavior. Current anomaly evidence reports `enabled={anomaly.get('enabled', 'unknown')}`, `model_trained={anomaly.get('model_trained', 'unknown')}`, `samples_collected={anomaly.get('samples_collected', 'unknown')}`, and `anomalies_24h={anomaly.get('anomalies_24h', 'unknown')}`.
+
+This is why the report describes both "large models" and "program models." Edge AI should choose the smallest reliable intelligence for the job. An LLM is useful for language summaries. Rules are useful for deterministic fallback. Isolation Forest is useful for numeric resource monitoring.
+
+## 6. Discussion and Analysis
+
+The main result is a resource-aware Edge AI architecture. A single "best model" answer would be misleading because edge devices are constrained. The best model depends on the job:
 
 {bullet([
-    "`qwen3:1.7b` is the best final summary model among the tested local candidates because summary quality matters more than strict generation time.",
-    "`qwen3:0.6b` remains useful for short local prompts and fast interactions.",
-    "`qwen3.5:0.8b` is rejected for this Raspberry Pi news-summary workflow because it was slow and returned empty visible content.",
-    "`qwen2.5:0.5b-instruct` is fast but produced weaker and less reliable summaries.",
-    "Rules and Isolation Forest are kept because edge reliability is part of the project, not a fallback story to hide.",
+    "For private documents and daily news, quality is more important than strict generation time, so `qwen3:1.7b` is selected.",
+    "For short interactions, a smaller model such as `qwen3:0.6b` is more suitable.",
+    "For failure cases, rules are more predictable than forcing a slow or missing LLM.",
+    "For device health, Isolation Forest is more efficient and explainable than asking a language model to inspect numeric metrics.",
 ])}
 
-The privacy argument is also concrete. The device can receive a private file through Feishu, extract its text locally, summarize it with a local model, and send back only the summary. This is a better Edge AI story than uploading the document text to a cloud LLM.
+The privacy argument is concrete. A user can send a private Word file or text file through Feishu. The Pi downloads it to a temporary directory, extracts text locally, summarizes it with the local model, removes the temporary file, and sends back only the summary. The sensitive document text is not sent to a cloud model.
 
-## 7. Limitations
+The reminder argument is also concrete. Built-in tasks can remind the user to eat at 12:00 and sleep at 23:30, and Feishu text commands can create new reminders. The timing decision belongs to the edge device. Feishu only delivers the message.
+
+## 7. Limitations and Future Work
 
 The system still has limitations:
 
@@ -424,9 +504,13 @@ The system still has limitations:
     "Student names and IDs still need to be inserted before final Canvas submission.",
 ])}
 
+Future work should add a more formal quality rubric for summaries, test more quantized models under the same input, and add OCR for scanned documents if the device can handle the extra CPU cost.
+
 ## 8. Conclusion
 
-Edge Task Hub demonstrates Edge AI by running useful intelligence directly on a Raspberry Pi: local LLM summaries, local private document processing, local anomaly detection, and local scheduling decisions. Feishu is used as the notification and command interface, but the privacy-sensitive inference work remains on the edge device. The final system is stronger after rejecting a strict 30-second summary policy: daily news and private document summaries can wait for the higher-quality `qwen3:1.7b` model, while shorter interactions and fallback paths remain available for reliability.
+Edge Task Hub demonstrates Edge AI by running useful intelligence directly on a Raspberry Pi: local LLM summaries, local private document processing, local anomaly detection, local reminder scheduling, and local fallback decisions. The model exploration matters because it shows the edge tradeoff step by step. A larger model was not deployable enough, a quantized model still cold-started poorly, a very small model was fast but lower quality, and the final system chose a hybrid model stack instead of pretending one model solves every problem.
+
+The final defense is simple: Feishu is the communication channel, but the private processing and decisions stay on the edge device. That is the Edge AI contribution.
 
 ## References
 
@@ -568,6 +652,436 @@ def report_css() -> str:
     """
 
 
+def reportlab_inline(text: str) -> str:
+    pieces: list[str] = []
+    pos = 0
+    for match in re.finditer(r"`([^`]+)`", text):
+        pieces.append(html.escape(text[pos:match.start()]))
+        pieces.append(f"<font name='Courier'>{html.escape(match.group(1))}</font>")
+        pos = match.end()
+    pieces.append(html.escape(text[pos:]))
+    marked = "".join(pieces)
+    marked = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", marked)
+    return marked
+
+
+def reportlab_pdf(markdown: str, pdf_path: Path) -> bool:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError:
+        return False
+
+    if pdf_path.exists():
+        pdf_path.unlink()
+
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        rightMargin=16 * mm,
+        leftMargin=16 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+        title="Edge Task Hub Final Report",
+        author="Edge Task Hub Team",
+    )
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="CoverTitle",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=24,
+            leading=29,
+            textColor=colors.HexColor("#123047"),
+            alignment=TA_CENTER,
+            spaceAfter=14,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="CoverSub",
+            parent=styles["Normal"],
+            fontSize=12,
+            leading=16,
+            textColor=colors.HexColor("#40566d"),
+            alignment=TA_CENTER,
+            spaceAfter=8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportBody",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=9.6,
+            leading=13.2,
+            textColor=colors.HexColor("#1d2935"),
+            spaceAfter=6,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportH2",
+            parent=styles["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=13.2,
+            leading=16,
+            textColor=colors.HexColor("#17324d"),
+            spaceBefore=11,
+            spaceAfter=7,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportH3",
+            parent=styles["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=10.8,
+            leading=13,
+            textColor=colors.HexColor("#28445f"),
+            spaceBefore=8,
+            spaceAfter=5,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="BulletText",
+            parent=styles["Normal"],
+            leftIndent=11,
+            firstLineIndent=-7,
+            fontSize=9.4,
+            leading=12.8,
+            textColor=colors.HexColor("#1d2935"),
+            spaceAfter=3,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="TableCell",
+            parent=styles["Normal"],
+            fontSize=7.4,
+            leading=9.2,
+            textColor=colors.HexColor("#1d2935"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="TableHeader",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=7.5,
+            leading=9.2,
+            textColor=colors.HexColor("#102a43"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="CodeBlock",
+            parent=styles["Code"],
+            fontName="Courier",
+            fontSize=7.5,
+            leading=9.5,
+            textColor=colors.HexColor("#1f2933"),
+        )
+    )
+
+    story: list[Any] = []
+    lines = markdown.splitlines()
+    title = lines[0].lstrip("# ").strip() if lines and lines[0].startswith("# ") else "Edge Task Hub Final Report"
+    generated = next((line for line in lines if line.startswith("Generated:")), "Generated: unknown")
+    story.append(Spacer(1, 38 * mm))
+    story.append(Paragraph(reportlab_inline(title), styles["CoverTitle"]))
+    story.append(Paragraph("Resource-Aware Edge AI Automation on Raspberry Pi", styles["CoverSub"]))
+    story.append(Spacer(1, 10 * mm))
+    story.append(Paragraph("Authors and student IDs: to be added before submission", styles["CoverSub"]))
+    story.append(Paragraph(reportlab_inline(generated), styles["CoverSub"]))
+    story.append(Spacer(1, 22 * mm))
+    story.append(
+        Table(
+            [[Paragraph("Feishu is the message channel. The Raspberry Pi is the privacy and inference boundary.", styles["ReportBody"])]],
+            colWidths=[doc.width],
+            style=TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eef5f8")),
+                    ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#7aa3b3")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                    ("TOPPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ]
+            ),
+        )
+    )
+    story.append(PageBreak())
+
+    paragraph: list[str] = []
+    list_items: list[str] = []
+    table_lines: list[str] = []
+    code_lines: list[str] = []
+    in_code = False
+
+    def table_widths(columns: int) -> list[float]:
+        if columns == 2:
+            return [doc.width * 0.28, doc.width * 0.72]
+        if columns == 3:
+            return [doc.width * 0.24, doc.width * 0.34, doc.width * 0.42]
+        if columns == 4:
+            return [doc.width * 0.18, doc.width * 0.24, doc.width * 0.40, doc.width * 0.18]
+        if columns == 5:
+            return [doc.width * 0.18, doc.width * 0.18, doc.width * 0.18, doc.width * 0.23, doc.width * 0.23]
+        return [doc.width / columns for _ in range(columns)]
+
+    def flush_paragraph() -> None:
+        nonlocal paragraph
+        if paragraph:
+            story.append(Paragraph(reportlab_inline(" ".join(paragraph)), styles["ReportBody"]))
+            paragraph = []
+
+    def flush_list() -> None:
+        nonlocal list_items
+        for item in list_items:
+            story.append(Paragraph("- " + reportlab_inline(item), styles["BulletText"]))
+        list_items = []
+
+    def flush_table() -> None:
+        nonlocal table_lines
+        if len(table_lines) < 2:
+            table_lines = []
+            return
+        rows: list[list[str]] = []
+        for raw in table_lines:
+            if re.match(r"^\|\s*-", raw):
+                continue
+            rows.append([cell.strip() for cell in raw.strip("|").split("|")])
+        table_lines = []
+        if not rows:
+            return
+        formatted = []
+        for row_index, row in enumerate(rows):
+            style_name = "TableHeader" if row_index == 0 else "TableCell"
+            formatted.append([Paragraph(reportlab_inline(cell), styles[style_name]) for cell in row])
+        table = Table(formatted, colWidths=table_widths(len(rows[0])), repeatRows=1, hAlign="LEFT")
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef4")),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#bac7d5")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        story.append(table)
+        story.append(Spacer(1, 5))
+
+    started_body = False
+    for line in lines:
+        if line.startswith("# "):
+            started_body = True
+            continue
+        if not started_body:
+            continue
+        if line.startswith("```"):
+            flush_paragraph()
+            flush_list()
+            flush_table()
+            if in_code:
+                story.append(
+                    Table(
+                        [[Paragraph(html.escape("\n".join(code_lines)).replace("\n", "<br/>"), styles["CodeBlock"])]],
+                        colWidths=[doc.width],
+                        style=TableStyle(
+                            [
+                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f6f8fa")),
+                                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#cbd5df")),
+                                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                            ]
+                        ),
+                    )
+                )
+                story.append(Spacer(1, 5))
+                in_code = False
+                code_lines = []
+            else:
+                in_code = True
+            continue
+        if in_code:
+            code_lines.append(line)
+            continue
+        if line.startswith("|"):
+            flush_paragraph()
+            flush_list()
+            table_lines.append(line)
+            continue
+        flush_table()
+        if not line.strip():
+            flush_paragraph()
+            flush_list()
+            continue
+        if line.startswith("## "):
+            flush_paragraph()
+            flush_list()
+            story.append(Paragraph(reportlab_inline(line[3:].strip()), styles["ReportH2"]))
+        elif line.startswith("### "):
+            flush_paragraph()
+            flush_list()
+            story.append(Paragraph(reportlab_inline(line[4:].strip()), styles["ReportH3"]))
+        elif line.startswith("- "):
+            flush_paragraph()
+            list_items.append(line[2:].strip())
+        elif line.startswith("Authors:") or line.startswith("Generated:"):
+            continue
+        else:
+            paragraph.append(line.strip())
+
+    flush_paragraph()
+    flush_list()
+    flush_table()
+
+    def footer(canvas: Any, document: Any) -> None:
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(colors.HexColor("#64748b"))
+        canvas.drawString(document.leftMargin, 9 * mm, "Edge Task Hub - Edge AI Final Report")
+        canvas.drawRightString(A4[0] - document.rightMargin, 9 * mm, f"Page {document.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return pdf_path.exists() and pdf_path.stat().st_size > 1024
+
+
+def slides_reportlab_pdf(slides: list[dict[str, Any]], pdf_path: Path) -> bool:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+        from reportlab.pdfgen import canvas
+        from reportlab.platypus import Paragraph, Table, TableStyle
+    except ImportError:
+        return False
+
+    if pdf_path.exists():
+        pdf_path.unlink()
+
+    width, height = 13.333 * inch, 7.5 * inch
+    margin_x = 0.72 * inch
+    top_margin = 0.52 * inch
+    palette = [colors.HexColor("#2f6f5e"), colors.HexColor("#315c9c"), colors.HexColor("#b45f3c")]
+    text_color = colors.HexColor("#172033")
+    muted = colors.HexColor("#52647a")
+    bg = colors.HexColor("#f7f9fc")
+
+    def wrap_text(text: str, font: str, size: float, max_width: float) -> list[str]:
+        words = text.split()
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            candidate = word if not current else f"{current} {word}"
+            if stringWidth(candidate, font, size) <= max_width:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        return lines or [""]
+
+    def draw_wrapped(c: Any, text: str, x: float, y: float, font: str, size: float, leading: float, max_width: float, fill: Any) -> float:
+        c.setFont(font, size)
+        c.setFillColor(fill)
+        for line in wrap_text(text, font, size, max_width):
+            c.drawString(x, y, line)
+            y -= leading
+        return y
+
+    def paragraph(text: str, size: float, bold: bool = False) -> Paragraph:
+        return Paragraph(
+            reportlab_inline(str(text)),
+            ParagraphStyle(
+                name=f"SlideCell{size}{bold}",
+                fontName="Helvetica-Bold" if bold else "Helvetica",
+                fontSize=size,
+                leading=size + 3,
+                textColor=text_color,
+            ),
+        )
+
+    c = canvas.Canvas(str(pdf_path), pagesize=(width, height))
+    c.setTitle("Edge Task Hub Presentation Slides")
+    c.setAuthor("Edge Task Hub Team")
+    for index, slide in enumerate(slides, 1):
+        accent = palette[(index - 1) % len(palette)]
+        c.setFillColor(bg)
+        c.rect(0, 0, width, height, stroke=0, fill=1)
+        c.setFillColor(accent)
+        c.rect(0, height - 0.11 * inch, width, 0.11 * inch, stroke=0, fill=1)
+
+        c.setFillColor(muted)
+        c.setFont("Helvetica", 14)
+        c.drawRightString(width - 0.56 * inch, height - 0.42 * inch, f"{index:02d}")
+        c.setFillColor(accent)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(margin_x, height - top_margin, slide.get("kicker", "Edge AI").upper())
+
+        y = height - top_margin - 0.46 * inch
+        y = draw_wrapped(c, slide["title"], margin_x, y, "Helvetica-Bold", 32, 37, width - 2 * margin_x, text_color)
+        y -= 0.06 * inch
+        lead = slide.get("lead") or ""
+        if lead:
+            y = draw_wrapped(c, lead, margin_x, y, "Helvetica", 17, 23, width - 2 * margin_x, colors.HexColor("#31445d"))
+            y -= 0.12 * inch
+
+        if slide.get("table"):
+            table_data = slide["table"]
+            rows = [[paragraph(cell, 10.5, bold=True) for cell in table_data["headers"]]]
+            rows.extend([[paragraph(cell, 10.2) for cell in row] for row in table_data["rows"]])
+            table = Table(rows, colWidths=[2.55 * inch, 5.0 * inch, 4.25 * inch], repeatRows=1)
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef6")),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#c5ceda")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            table_width, table_height = table.wrapOn(c, width - 2 * margin_x, y)
+            table.drawOn(c, margin_x, max(0.55 * inch, y - table_height))
+        else:
+            c.setFont("Helvetica", 16)
+            c.setFillColor(text_color)
+            bullet_x = margin_x + 0.08 * inch
+            text_x = margin_x + 0.32 * inch
+            for item in slide.get("bullets", []):
+                lines = wrap_text(item, "Helvetica", 16, width - text_x - margin_x)
+                c.drawString(bullet_x, y, "-")
+                for line in lines:
+                    c.drawString(text_x, y, line)
+                    y -= 22
+                y -= 6
+
+        c.showPage()
+    c.save()
+    return pdf_path.exists() and pdf_path.stat().st_size > 1024
+
+
 def slide_html(slides: list[dict[str, Any]], *, start_index: int = 1) -> str:
     pages = []
     for index, slide in enumerate(slides, start_index):
@@ -612,18 +1126,18 @@ def build_slides(evidence: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {
             "title": "Edge Task Hub",
-            "lead": "Privacy-preserving Edge AI task automation on Raspberry Pi.",
-            "bullets": ["Authors and student IDs will be added before submission.", "Core claim: private inference and scheduling decisions happen on the edge device."],
+            "lead": "Resource-aware Edge AI automation on Raspberry Pi.",
+            "bullets": ["Authors and student IDs will be added before submission.", "Core claim: Feishu is the message channel, but private inference and scheduling decisions stay on the Pi."],
         },
         {
-            "title": "Problem",
-            "lead": "A Pi project should not be only a web dashboard or a cloud chatbot.",
-            "bullets": ["Users need daily summaries and reminders through Feishu.", "Private files should not be sent to a cloud LLM.", "The system must defend its Edge AI part clearly."],
+            "title": "Course Focus",
+            "lead": "The project must defend Edge AI, not only AI output.",
+            "bullets": ["A cloud chatbot can ignore memory, storage, and cold start.", "A Raspberry Pi must choose models under real device limits.", "The report focuses on setup, results, and analysis."],
         },
         {
-            "title": "Edge AI Boundary",
-            "lead": "Feishu is the message channel; the Raspberry Pi is the intelligence boundary.",
-            "bullets": ["Local Ollama for news and document summaries.", "Local rules fallback when the LLM is unavailable.", "Local Isolation Forest for device metrics."],
+            "title": "Edge Boundary",
+            "lead": "Feishu receives commands and delivers messages; the Pi owns the intelligence.",
+            "bullets": ["Local Ollama summarizes news and private documents.", "Local rules keep deterministic fallback behavior.", "Local Isolation Forest monitors device health."],
         },
         {
             "title": "System Architecture",
@@ -646,22 +1160,27 @@ def build_slides(evidence: dict[str, Any]) -> list[dict[str, Any]]:
             "bullets": ["Feishu sends the file event.", "The Pi downloads to a temporary directory.", "Text is extracted locally and summarized with qwen3:1.7b.", "The temporary file is deleted after processing."],
         },
         {
-            "title": "Model Comparison",
-            "lead": "The final choice is quality-first, not newest-model-first.",
+            "title": "Model Exploration Logic",
+            "lead": "The project moved from larger model quality to edge-device feasibility.",
+            "bullets": ["2B-size model: better language potential, but unstable installation and storage pressure.", "0.8B quantized model: smaller, but still slow and empty or length-limited.", "0.5B model: fast, but weaker summary quality.", "Final policy: choose model by edge job, not by size alone."],
+        },
+        {
+            "title": "Model Results",
+            "lead": "The final choice is quality-first for waitable summaries and fast paths for short tasks.",
             "table": {
-                "headers": ["Candidate", "Decision", "Evidence"],
-                "rows": [[row["candidate"], row["decision"], row["elapsed"]] for row in MODEL_ROWS[:4]],
+                "headers": ["Candidate", "Constraint", "Decision"],
+                "rows": [[row["candidate"], row["constraint"], row["decision"]] for row in MODEL_ROWS[:5]],
             },
         },
         {
             "title": "Why qwen3.5:0.8b Failed",
-            "lead": "The cold start took too long and produced no visible summary in the benchmark.",
-            "bullets": ["Measured 74.832 seconds and 1.965 tokens/s.", "Likely consumed output budget in internal thinking before visible content.", "Runtime now sends think=false, but the candidate remains weaker for this project."],
+            "lead": "Quantization helped size, but not enough for this Raspberry Pi news-summary workload.",
+            "bullets": ["Recorded cold-start runs were about 52 to 75 seconds.", "Generation speed was about 2 tokens/s.", "Visible output was empty or length-limited in the benchmark.", "The likely causes were cold loading, CPU speed, memory pressure, and thinking-token budget."],
         },
         {
-            "title": "Experimental Setup",
-            "lead": "The evaluation ran on the deployed Raspberry Pi.",
-            "bullets": ["Real systemd service, SQLite database, and Feishu callback code.", "Candidate models compared with the same local news-summary style task.", "Unit tests cover Feishu events, reminder parsing, document extraction, and slow-summary acceptance."],
+            "title": "Program Models Matter",
+            "lead": "Edge AI is not only one large neural model.",
+            "bullets": ["Rules fallback keeps summaries deterministic when Ollama is missing or too slow.", "Isolation Forest scores CPU, memory, disk, temperature, and network metrics.", "These models are smaller, faster, and easier to explain for their jobs."],
         },
         {
             "title": "Results",
@@ -693,25 +1212,29 @@ Target duration: 15 minutes plus 5 minutes for questions.
 
 ## 0:00-1:00 Title and claim
 
-Say the project is an Edge AI automation system on Raspberry Pi. Feishu is only the communication channel; local inference is the main edge contribution.
+Say the project is a resource-aware Edge AI automation system on Raspberry Pi. Feishu is only the communication channel; local inference, scheduling, fallback, and monitoring are the edge contribution.
 
-## 1:00-3:00 System architecture
+## 1:00-3:00 Edge AI requirements
 
-Explain FastAPI, APScheduler, SQLite, Ollama, Feishu, and Isolation Forest. Keep background short.
+Explain the five constraints: privacy, memory, storage, latency policy, and reliability. Keep general background short.
 
-## 3:00-6:00 Experimental setup
+## 3:00-5:00 System architecture
 
-Show the deployed Pi, local model candidates, task schedules, Feishu workflows, and the test suite.
+Explain FastAPI, APScheduler, SQLite, Ollama, Feishu, rules fallback, and Isolation Forest. Emphasize that the Pi is the intelligence boundary.
 
-## 6:00-10:00 Experimental results
+## 5:00-9:00 Experimental setup and model exploration
 
-Focus on qwen3:1.7b, qwen3:0.6b, qwen3.5:0.8b, qwen2.5:0.5b, rules fallback, and Isolation Forest. Explain why generation time is allowed for news summaries.
+Show the model-selection chain: 2B-size model exposed storage and deployment limits, qwen3.5:0.8b exposed cold-start and memory pressure, qwen2.5:0.5b-instruct exposed quality loss, and qwen3:1.7b became the quality-first summary model.
 
-## 10:00-13:00 Discussion and analysis
+## 9:00-12:00 Workflow results
 
-Defend the Edge AI part: privacy boundary, local inference, resource-aware routing, fallback recording, and local anomaly detection.
+Cover daily news at 10:00, user-created Feishu reminders, private document summaries, rules fallback, and local anomaly detection.
 
-## 13:00-15:00 Limitations and conclusion
+## 12:00-14:00 Discussion and analysis
+
+Defend the Edge AI part: privacy boundary, resource-aware model choice, program models for reliability, and local metric monitoring.
+
+## 14:00-15:00 Limitations and conclusion
 
 Mention Feishu callback configuration, cold-start latency, and scanned PDF OCR as limitations. End with the final claim: the project demonstrates practical Edge AI on a real edge device.
 """
@@ -722,7 +1245,19 @@ def build_qa() -> str:
 
 ## Why is this Edge AI rather than a normal web app?
 
-The Raspberry Pi runs the intelligence locally: Ollama summaries, private document extraction, and Isolation Forest anomaly detection. Feishu is only the input and notification channel.
+The Raspberry Pi runs the intelligence locally: Ollama summaries, private document extraction, reminder scheduling, rules fallback, and Isolation Forest anomaly detection. Feishu is only the input and notification channel.
+
+## Why did you try several models instead of choosing one directly?
+
+Edge AI is constrained by memory, storage, cold start, latency, and privacy. The larger model direction tested quality but exposed deployability and storage limits. The quantized model direction reduced size but still had slow cold starts. The smallest model was fast but weaker. The final design chooses the model by edge job.
+
+## Why was the earlier 2B-size model not used?
+
+It was too heavy for a reliable Raspberry Pi deployment. The pull attempts were unstable and created storage pressure. For an edge device, a model that cannot be installed and operated reliably is not a valid final choice, even if its expected language quality is better.
+
+## Why mention Ollama quantization?
+
+Quantization is an Edge AI technique because it reduces model size and memory pressure. In this project, qwen3.5:0.8b showed that quantization helped fit the model better than a 2B candidate, but it did not fully solve cold-start latency or visible-output quality.
 
 ## Why did you select qwen3:1.7b if it is slower?
 
@@ -730,7 +1265,7 @@ Daily news and private document summaries do not require strict live latency. Qu
 
 ## Why did qwen3.5:0.8b time out or return empty output?
 
-The recorded run took 74.832 seconds at 1.965 tokens/s and produced no visible summary. The likely cause is cold model loading plus Qwen-style internal thinking consuming output tokens before visible content. The runtime now sends think=false, but that model is still rejected for this project.
+The recorded cold-start runs took about 52 to 75 seconds at about 2 tokens/s and produced empty or length-limited visible output. The likely causes are cold model loading, slow CPU generation, memory pressure, and Qwen-style thinking consuming output tokens before visible content. The runtime now sends think=false, but that model is still rejected for this project.
 
 ## What happens if Ollama is down?
 
@@ -743,6 +1278,10 @@ Files are downloaded to a temporary directory on the Raspberry Pi, text is extra
 ## What model handles system health?
 
 Isolation Forest handles system health. It is a better fit than an LLM for CPU, memory, disk, temperature, and network metrics because it is fast, local, and lightweight.
+
+## Why call rules and Isolation Forest "models"?
+
+They are program or classical ML models, not generative LLMs. Edge AI should use the smallest reliable intelligence for each local job. Rules are best for deterministic fallback, and Isolation Forest is best for numeric system metrics.
 
 ## What still needs work?
 
@@ -758,7 +1297,9 @@ def write_supporting_docs(evidence: dict[str, Any]) -> None:
         "## Final Decision\n\n"
         "The selected news and private document summary model is `qwen3:1.7b`. "
         "`qwen3:0.6b` remains the fast local prompt candidate. "
-        "`qwen3.5:0.8b` and `qwen2.5:0.5b-instruct` are rejected for final summaries for this Raspberry Pi project.\n\n"
+        "`qwen3.5:2b`, `qwen3.5:0.8b`, and `qwen2.5:0.5b-instruct` are rejected for final summaries for different edge reasons: deployment stability, cold-start behavior, and quality loss.\n\n"
+        "## Edge AI Lesson\n\n"
+        "The model search was not random. Each candidate tested a different constraint: larger-model quality, quantized memory reduction, very-small-model speed, deterministic program reliability, and classical local anomaly detection.\n\n"
         + model_table()
         + "\n",
         encoding="utf-8",
@@ -766,11 +1307,15 @@ def write_supporting_docs(evidence: dict[str, Any]) -> None:
     (DOCS / "news-summary-evaluation.md").write_text(
         "# News Summary Evaluation\n\n"
         "The final news-summary policy is quality-first. The daily summary task can wait, so it uses `qwen3:1.7b` with a 300-second timeout. "
-        "The verified API run completed in 55.624 seconds, used the Ollama backend, and did not fall back to rules.\n\n"
+        "The verified API run completed in 55.624 seconds, used the Ollama backend, and did not fall back to rules. "
+        "This is intentional: a daily previous-day summary should be useful, not only fast.\n\n"
         + md_table(
-            ["Path", "Decision", "Reason"],
+            ["Path", "Decision", "Edge reason"],
             [
-                ["qwen3:1.7b", "Selected", "Best final quality among tested local candidates."],
+                ["qwen3.5:2b", "Rejected", "Too heavy and unstable to install reliably on the Pi."],
+                ["qwen3.5:0.8b", "Rejected", "Quantized but still slow on cold start and returned empty or length-limited output."],
+                ["qwen2.5:0.5b-instruct", "Rejected for final summaries", "Fast, but weaker summary quality and semantic drift."],
+                ["qwen3:1.7b", "Selected", "Best final quality among tested local candidates when waiting is acceptable."],
                 ["qwen3:0.6b", "Kept", "Fast local prompt candidate for short interactions."],
                 ["rules", "Kept", "Deterministic fallback for failures."],
             ],
@@ -790,7 +1335,8 @@ def write_supporting_docs(evidence: dict[str, Any]) -> None:
     )
     (DOCS / "model-exploration-log.md").write_text(
         "# Model Exploration Log\n\n"
-        "The project compared local model candidates on Raspberry Pi and changed the final policy after observing that news summaries do not need strict live latency.\n\n"
+        "The project compared local model candidates on Raspberry Pi and changed the final policy after observing that news summaries do not need strict live latency. "
+        "The exploration moved from larger-model quality, to quantized deployability, to tiny-model speed, and finally to a hybrid edge stack.\n\n"
         + model_table()
         + "\n",
         encoding="utf-8",
@@ -799,7 +1345,7 @@ def write_supporting_docs(evidence: dict[str, Any]) -> None:
         "# Final Report Notes\n\n"
         "Use `docs/final-report.pdf` as the report PDF and `docs/presentation-slides.pdf` as the presentation slide PDF. "
         "Names and student IDs still need to be added before final submission.\n\n"
-        "Core defense sentence: Edge Task Hub keeps inference and privacy-sensitive processing on the Raspberry Pi, while Feishu is only used for user interaction and notifications.\n",
+        "Core defense sentence: Edge Task Hub keeps inference, private document processing, scheduling decisions, fallback logic, and device-health monitoring on the Raspberry Pi, while Feishu is only used for user interaction and notifications.\n",
         encoding="utf-8",
     )
     CHECKLIST_MD.write_text(
@@ -924,8 +1470,16 @@ def main() -> int:
     QA_MD.write_text(build_qa(), encoding="utf-8")
     write_supporting_docs(evidence)
 
-    convert_html_to_pdf(REPORT_HTML, REPORT_PDF)
-    convert_slides_to_pdf(slides)
+    if reportlab_pdf(report_md, REPORT_PDF):
+        print("wrote polished ReportLab report PDF")
+    else:
+        print("ReportLab not available; using LibreOffice report PDF conversion")
+        convert_html_to_pdf(REPORT_HTML, REPORT_PDF)
+    if slides_reportlab_pdf(slides, SLIDES_PDF):
+        print("wrote polished ReportLab slides PDF")
+    else:
+        print("ReportLab not available; using LibreOffice slide PDF conversion")
+        convert_slides_to_pdf(slides)
 
     LEGACY_REPORT_MD.write_text(report_md, encoding="utf-8")
     LEGACY_REPORT_HTML.write_text(REPORT_HTML.read_text(encoding="utf-8"), encoding="utf-8")
