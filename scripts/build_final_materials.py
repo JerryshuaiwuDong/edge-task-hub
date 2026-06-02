@@ -976,12 +976,16 @@ def slides_reportlab_pdf(slides: list[dict[str, Any]], pdf_path: Path) -> bool:
         pdf_path.unlink()
 
     width, height = 13.333 * inch, 7.5 * inch
-    margin_x = 0.72 * inch
-    top_margin = 0.52 * inch
+    margin_x = 0.58 * inch
+    top_margin = 0.42 * inch
     palette = [colors.HexColor("#2f6f5e"), colors.HexColor("#315c9c"), colors.HexColor("#b45f3c")]
+    secondary = colors.HexColor("#d69f40")
     text_color = colors.HexColor("#172033")
     muted = colors.HexColor("#52647a")
+    pale = colors.HexColor("#eef4f6")
     bg = colors.HexColor("#f7f9fc")
+    ink = colors.HexColor("#0f172a")
+    line = colors.HexColor("#b8c6d6")
 
     def wrap_text(text: str, font: str, size: float, max_width: float) -> list[str]:
         words = text.split()
@@ -1019,6 +1023,286 @@ def slides_reportlab_pdf(slides: list[dict[str, Any]], pdf_path: Path) -> bool:
             ),
         )
 
+    def draw_panel(c: Any, x: float, y: float, w: float, h: float, *, fill: Any | None = None, stroke: Any | None = None, radius: float = 10) -> None:
+        c.setFillColor(fill or colors.white)
+        c.setStrokeColor(stroke or line)
+        c.setLineWidth(1)
+        c.roundRect(x, y, w, h, radius, stroke=1, fill=1)
+
+    def draw_label(c: Any, text: str, x: float, y: float, *, color: Any = muted, size: float = 9, bold: bool = True) -> None:
+        c.setFillColor(color)
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawString(x, y, text)
+
+    def draw_centered(c: Any, text: str, x: float, y: float, w: float, *, color: Any = text_color, size: float = 11, bold: bool = True) -> None:
+        c.setFillColor(color)
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawCentredString(x + w / 2, y, text)
+
+    def draw_arrow(c: Any, x1: float, y1: float, x2: float, y2: float, color: Any = line) -> None:
+        c.setStrokeColor(color)
+        c.setFillColor(color)
+        c.setLineWidth(2)
+        c.line(x1, y1, x2, y2)
+        dx = x2 - x1
+        dy = y2 - y1
+        length = max((dx * dx + dy * dy) ** 0.5, 1)
+        ux, uy = dx / length, dy / length
+        px, py = -uy, ux
+        size = 7
+        c.line(x2, y2, x2 - ux * size + px * size * 0.55, y2 - uy * size + py * size * 0.55)
+        c.line(x2, y2, x2 - ux * size - px * size * 0.55, y2 - uy * size - py * size * 0.55)
+
+    def draw_icon(c: Any, kind: str, x: float, y: float, s: float, color: Any) -> None:
+        c.setStrokeColor(color)
+        c.setFillColor(color)
+        c.setLineWidth(2)
+        if kind == "pi":
+            c.roundRect(x, y, s, s, 8, stroke=1, fill=0)
+            c.setFont("Helvetica-Bold", s * 0.34)
+            c.drawCentredString(x + s / 2, y + s * 0.38, "Pi")
+            for i in range(4):
+                c.circle(x + s * 0.18 + i * s * 0.21, y + s * 0.82, 2.2, stroke=0, fill=1)
+        elif kind == "cloud":
+            c.circle(x + s * 0.36, y + s * 0.48, s * 0.20, stroke=1, fill=0)
+            c.circle(x + s * 0.52, y + s * 0.56, s * 0.25, stroke=1, fill=0)
+            c.circle(x + s * 0.68, y + s * 0.47, s * 0.18, stroke=1, fill=0)
+            c.line(x + s * 0.22, y + s * 0.36, x + s * 0.78, y + s * 0.36)
+        elif kind == "message":
+            c.roundRect(x + s * 0.1, y + s * 0.25, s * 0.8, s * 0.5, 8, stroke=1, fill=0)
+            c.line(x + s * 0.28, y + s * 0.25, x + s * 0.20, y + s * 0.08)
+            c.circle(x + s * 0.34, y + s * 0.50, 2, stroke=0, fill=1)
+            c.circle(x + s * 0.50, y + s * 0.50, 2, stroke=0, fill=1)
+            c.circle(x + s * 0.66, y + s * 0.50, 2, stroke=0, fill=1)
+        elif kind == "lock":
+            c.roundRect(x + s * 0.22, y + s * 0.20, s * 0.56, s * 0.45, 5, stroke=1, fill=0)
+            c.arc(x + s * 0.31, y + s * 0.44, x + s * 0.69, y + s * 0.88, 0, 180)
+            c.circle(x + s * 0.50, y + s * 0.43, 2.2, stroke=0, fill=1)
+        elif kind == "cpu":
+            c.roundRect(x + s * 0.22, y + s * 0.22, s * 0.56, s * 0.56, 4, stroke=1, fill=0)
+            c.roundRect(x + s * 0.35, y + s * 0.35, s * 0.30, s * 0.30, 3, stroke=1, fill=0)
+            for i in range(4):
+                p = x + s * (0.28 + i * 0.15)
+                c.line(p, y + s * 0.14, p, y + s * 0.22)
+                c.line(p, y + s * 0.78, p, y + s * 0.86)
+                q = y + s * (0.28 + i * 0.15)
+                c.line(x + s * 0.14, q, x + s * 0.22, q)
+                c.line(x + s * 0.78, q, x + s * 0.86, q)
+        elif kind == "clock":
+            c.circle(x + s * 0.5, y + s * 0.5, s * 0.34, stroke=1, fill=0)
+            c.line(x + s * 0.5, y + s * 0.5, x + s * 0.5, y + s * 0.72)
+            c.line(x + s * 0.5, y + s * 0.5, x + s * 0.66, y + s * 0.42)
+        elif kind == "db":
+            c.ellipse(x + s * 0.20, y + s * 0.63, x + s * 0.80, y + s * 0.83, stroke=1, fill=0)
+            c.line(x + s * 0.20, y + s * 0.30, x + s * 0.20, y + s * 0.73)
+            c.line(x + s * 0.80, y + s * 0.30, x + s * 0.80, y + s * 0.73)
+            c.ellipse(x + s * 0.20, y + s * 0.20, x + s * 0.80, y + s * 0.40, stroke=1, fill=0)
+            c.ellipse(x + s * 0.20, y + s * 0.41, x + s * 0.80, y + s * 0.61, stroke=1, fill=0)
+        elif kind == "brain":
+            pts = [(0.25, 0.42), (0.34, 0.65), (0.50, 0.74), (0.68, 0.64), (0.75, 0.42), (0.62, 0.28), (0.43, 0.30)]
+            last = None
+            for px, py in pts:
+                cx, cy = x + px * s, y + py * s
+                c.circle(cx, cy, s * 0.055, stroke=1, fill=0)
+                if last:
+                    c.line(last[0], last[1], cx, cy)
+                last = (cx, cy)
+        elif kind == "doc":
+            c.rect(x + s * 0.25, y + s * 0.16, s * 0.50, s * 0.68, stroke=1, fill=0)
+            c.line(x + s * 0.36, y + s * 0.62, x + s * 0.64, y + s * 0.62)
+            c.line(x + s * 0.36, y + s * 0.50, x + s * 0.64, y + s * 0.50)
+            c.line(x + s * 0.36, y + s * 0.38, x + s * 0.58, y + s * 0.38)
+        elif kind == "shield":
+            path = c.beginPath()
+            path.moveTo(x + s * 0.50, y + s * 0.85)
+            path.lineTo(x + s * 0.78, y + s * 0.70)
+            path.lineTo(x + s * 0.70, y + s * 0.33)
+            path.lineTo(x + s * 0.50, y + s * 0.16)
+            path.lineTo(x + s * 0.30, y + s * 0.33)
+            path.lineTo(x + s * 0.22, y + s * 0.70)
+            path.close()
+            c.drawPath(path, stroke=1, fill=0)
+        elif kind == "check":
+            c.circle(x + s * 0.5, y + s * 0.5, s * 0.32, stroke=1, fill=0)
+            c.line(x + s * 0.34, y + s * 0.50, x + s * 0.46, y + s * 0.38)
+            c.line(x + s * 0.46, y + s * 0.38, x + s * 0.68, y + s * 0.62)
+        else:
+            c.circle(x + s * 0.5, y + s * 0.5, s * 0.32, stroke=1, fill=0)
+
+    def icon_card(c: Any, x: float, y: float, w: float, h: float, icon: str, title: str, note: str, accent: Any) -> None:
+        draw_panel(c, x, y, w, h, fill=colors.white, stroke=line, radius=12)
+        draw_icon(c, icon, x + 10, y + h - 50, 36, accent)
+        draw_label(c, title, x + 56, y + h - 28, color=ink, size=12)
+        c.setFillColor(muted)
+        c.setFont("Helvetica", 8.8)
+        for i, text_line in enumerate(wrap_text(note, "Helvetica", 8.8, w - 66)[:2]):
+            c.drawString(x + 56, y + h - 44 - i * 11, text_line)
+
+    def draw_visual(c: Any, kind: str | None, x: float, y: float, w: float, h: float, accent: Any) -> None:
+        if not kind:
+            return
+        draw_panel(c, x, y, w, h, fill=colors.white, stroke=line, radius=18)
+        pad = 18
+        inner_x, inner_y = x + pad, y + pad
+        inner_w, inner_h = w - 2 * pad, h - 2 * pad
+        if kind == "hero":
+            cx, cy = x + w * 0.52, y + h * 0.55
+            c.setFillColor(pale)
+            c.setStrokeColor(accent)
+            c.circle(cx, cy, 78, stroke=1, fill=1)
+            draw_icon(c, "pi", cx - 34, cy - 34, 68, accent)
+            nodes = [
+                ("message", "Feishu", x + 34, y + h - 86),
+                ("brain", "Inference", x + w - 150, y + h - 86),
+                ("clock", "Schedule", x + 38, y + 42),
+                ("shield", "Private", x + w - 150, y + 42),
+            ]
+            for icon, label, nx, ny in nodes:
+                draw_panel(c, nx, ny, 116, 58, fill=colors.HexColor("#f8fbfd"), stroke=line, radius=14)
+                draw_icon(c, icon, nx + 8, ny + 11, 35, accent)
+                draw_label(c, label, nx + 48, ny + 31, color=ink, size=11)
+                draw_arrow(c, nx + 58, ny + 29, cx, cy, accent)
+        elif kind == "proof":
+            labels = [("Setup", "real Pi runtime", "cpu"), ("Results", "measured tradeoffs", "check"), ("Analysis", "edge constraints", "shield")]
+            card_w = (inner_w - 24) / 3
+            for i, (title, note, icon) in enumerate(labels):
+                icon_card(c, inner_x + i * (card_w + 12), inner_y + inner_h * 0.42, card_w, inner_h * 0.42, icon, title, note, accent)
+            c.setStrokeColor(accent)
+            c.setLineWidth(3)
+            c.line(inner_x + 8, inner_y + inner_h * 0.28, inner_x + inner_w - 8, inner_y + inner_h * 0.28)
+            draw_label(c, "Course target: defend the EDGE part of AI", inner_x + 10, inner_y + inner_h * 0.18, color=accent, size=14)
+        elif kind == "constraints":
+            items = [("lock", "Privacy"), ("cpu", "Memory"), ("db", "Storage"), ("clock", "Latency"), ("shield", "Reliability")]
+            for i, (icon, label) in enumerate(items):
+                angle_x = inner_x + (i % 3) * (inner_w / 3)
+                angle_y = inner_y + inner_h * (0.55 if i < 3 else 0.18)
+                icon_card(c, angle_x + 6, angle_y, inner_w / 3 - 12, 82, icon, label, "edge constraint", accent if i % 2 == 0 else secondary)
+        elif kind == "architecture":
+            left = inner_x
+            mid = inner_x + inner_w * 0.34
+            right = inner_x + inner_w * 0.70
+            icon_card(c, left, inner_y + inner_h * 0.58, 145, 80, "message", "Feishu", "commands and results", accent)
+            draw_panel(c, mid, inner_y + 16, inner_w * 0.31, inner_h - 32, fill=colors.HexColor("#eef5f8"), stroke=accent, radius=16)
+            draw_centered(c, "Raspberry Pi", mid, inner_y + inner_h - 46, inner_w * 0.31, color=accent, size=14)
+            for j, (icon, label) in enumerate([("cpu", "FastAPI"), ("clock", "Scheduler"), ("db", "SQLite"), ("brain", "Ollama"), ("shield", "Isolation Forest")]):
+                draw_icon(c, icon, mid + 16, inner_y + inner_h - 88 - j * 36, 24, accent)
+                draw_label(c, label, mid + 48, inner_y + inner_h - 73 - j * 36, color=ink, size=10)
+            icon_card(c, right, inner_y + inner_h * 0.58, 155, 80, "doc", "Summaries", "news and documents", secondary)
+            icon_card(c, right, inner_y + inner_h * 0.22, 155, 80, "clock", "Reminders", "local timing", secondary)
+            draw_arrow(c, left + 150, inner_y + inner_h * 0.68, mid - 10, inner_y + inner_h * 0.68, accent)
+            draw_arrow(c, mid + inner_w * 0.31 + 8, inner_y + inner_h * 0.68, right - 10, inner_y + inner_h * 0.68, accent)
+            draw_arrow(c, mid + inner_w * 0.31 + 8, inner_y + inner_h * 0.32, right - 10, inner_y + inner_h * 0.32, accent)
+        elif kind == "workflows":
+            events = [("10:00", "News", "doc"), ("12:00", "Lunch", "clock"), ("23:30", "Sleep", "clock"), ("Anytime", "File summary", "lock")]
+            yline = inner_y + inner_h * 0.54
+            c.setStrokeColor(accent)
+            c.setLineWidth(3)
+            c.line(inner_x + 30, yline, inner_x + inner_w - 30, yline)
+            gap = (inner_w - 80) / (len(events) - 1)
+            for i, (time, title, icon) in enumerate(events):
+                px = inner_x + 40 + i * gap
+                c.setFillColor(colors.white)
+                c.setStrokeColor(accent if i % 2 == 0 else secondary)
+                c.circle(px, yline, 16, stroke=1, fill=1)
+                draw_icon(c, icon, px - 15, yline + 26, 30, accent if i % 2 == 0 else secondary)
+                draw_centered(c, time, px - 44, yline - 38, 88, color=ink, size=10)
+                draw_centered(c, title, px - 52, yline - 56, 104, color=muted, size=9, bold=False)
+        elif kind == "setup":
+            layers = [("Device", "Raspberry Pi", "pi"), ("Application", "FastAPI / APScheduler / SQLite", "cpu"), ("AI", "Ollama / rules / Isolation Forest", "brain"), ("Messaging", "Feishu webhook and callback", "message")]
+            layer_h = (inner_h - 30) / 4
+            for i, (title, note, icon) in enumerate(layers):
+                ly = inner_y + inner_h - (i + 1) * layer_h - i * 10
+                draw_panel(c, inner_x, ly, inner_w, layer_h, fill=colors.HexColor("#f8fbfd"), stroke=accent if i == 2 else line, radius=14)
+                draw_icon(c, icon, inner_x + 18, ly + layer_h / 2 - 17, 34, accent if i == 2 else muted)
+                draw_label(c, title, inner_x + 68, ly + layer_h / 2 + 6, color=ink, size=13)
+                draw_label(c, note, inner_x + 68, ly + layer_h / 2 - 12, color=muted, size=9, bold=False)
+        elif kind == "funnel":
+            rows = [
+                ("qwen3.5:2b", "too heavy"),
+                ("qwen3.5:0.8b", "quantized but slow"),
+                ("qwen2.5:0.5b", "fast but weak"),
+                ("qwen3:1.7b + 0.6b", "hybrid final"),
+            ]
+            for i, (model, note) in enumerate(rows):
+                rw = inner_w - i * 58
+                rx = inner_x + i * 29
+                ry = inner_y + inner_h - 70 - i * 68
+                fill = colors.HexColor("#fff6e8") if i < 3 else colors.HexColor("#e9f6f1")
+                stroke = secondary if i < 3 else accent
+                draw_panel(c, rx, ry, rw, 50, fill=fill, stroke=stroke, radius=14)
+                draw_label(c, model, rx + 18, ry + 29, color=ink, size=12)
+                draw_label(c, note, rx + rw - 150, ry + 29, color=stroke, size=10)
+        elif kind == "results":
+            bars = [
+                ("qwen2.5:0.5b", 14.3, "fast / weak", secondary),
+                ("qwen3:1.7b", 55.6, "selected quality", accent),
+                ("qwen3.5:0.8b", 74.8, "slow / empty", colors.HexColor("#b45f3c")),
+            ]
+            max_v = 80
+            for i, (name, value, note, color) in enumerate(bars):
+                by = inner_y + inner_h - 74 - i * 74
+                draw_label(c, name, inner_x, by + 22, color=ink, size=11)
+                c.setFillColor(colors.HexColor("#e8eef4"))
+                c.roundRect(inner_x + 150, by + 15, inner_w - 250, 18, 9, stroke=0, fill=1)
+                c.setFillColor(color)
+                c.roundRect(inner_x + 150, by + 15, (inner_w - 250) * value / max_v, 18, 9, stroke=0, fill=1)
+                draw_label(c, f"{value:.1f}s", inner_x + inner_w - 86, by + 20, color=color, size=11)
+                draw_label(c, note, inner_x + 150, by - 2, color=muted, size=9, bold=False)
+            draw_label(c, "2B candidate: rejected before final inference", inner_x, inner_y + 24, color=colors.HexColor("#b45f3c"), size=12)
+        elif kind == "cold_start":
+            steps = [("Load", "model into RAM", "db"), ("Generate", "Pi CPU speed", "cpu"), ("Think", "token budget", "brain"), ("Output", "visible summary", "doc")]
+            step_w = (inner_w - 54) / 4
+            for i, (title, note, icon) in enumerate(steps):
+                sx = inner_x + i * (step_w + 18)
+                icon_card(c, sx, inner_y + inner_h * 0.46, step_w, 92, icon, title, note, accent if i != 2 else secondary)
+                if i < 3:
+                    draw_arrow(c, sx + step_w + 3, inner_y + inner_h * 0.59, sx + step_w + 15, inner_y + inner_h * 0.59, muted)
+            draw_panel(c, inner_x, inner_y + 28, inner_w, 64, fill=colors.HexColor("#fff7ed"), stroke=secondary, radius=14)
+            draw_label(c, "Observed symptom", inner_x + 18, inner_y + 64, color=secondary, size=12)
+            draw_label(c, "52-75 seconds, about 2 tokens/s, empty or length-limited visible output", inner_x + 18, inner_y + 42, color=ink, size=11)
+        elif kind == "hybrid":
+            cells = [("LLM", "language summaries", "brain"), ("Rules", "deterministic fallback", "check"), ("Isolation Forest", "device metrics", "cpu"), ("Scheduler", "local timing", "clock")]
+            cell_w = (inner_w - 16) / 2
+            cell_h = (inner_h - 16) / 2
+            for i, (title, note, icon) in enumerate(cells):
+                cx = inner_x + (i % 2) * (cell_w + 16)
+                cy = inner_y + (1 - i // 2) * (cell_h + 16)
+                icon_card(c, cx, cy, cell_w, cell_h, icon, title, note, accent if i in {0, 2} else secondary)
+        elif kind == "privacy":
+            steps = [("Feishu file", "message"), ("Temp file", "doc"), ("Local extract", "lock"), ("Local LLM", "brain"), ("Summary reply", "message")]
+            gap = (inner_w - 64) / (len(steps) - 1)
+            ymid = inner_y + inner_h * 0.58
+            for i, (label, icon) in enumerate(steps):
+                px = inner_x + 32 + i * gap
+                draw_icon(c, icon, px - 20, ymid + 10, 40, accent if i != 4 else secondary)
+                draw_centered(c, label, px - 48, ymid - 16, 96, color=ink, size=9)
+                if i < len(steps) - 1:
+                    draw_arrow(c, px + 26, ymid + 30, px + gap - 28, ymid + 30, muted)
+            draw_panel(c, inner_x + inner_w * 0.18, inner_y + 26, inner_w * 0.64, 60, fill=colors.HexColor("#e9f6f1"), stroke=accent, radius=14)
+            draw_label(c, "Privacy boundary", inner_x + inner_w * 0.18 + 18, inner_y + 62, color=accent, size=12)
+            draw_label(c, "Raw document text stays on Raspberry Pi", inner_x + inner_w * 0.18 + 18, inner_y + 40, color=ink, size=11)
+        elif kind == "tradeoff":
+            p1 = (inner_x + inner_w * 0.50, inner_y + inner_h * 0.82)
+            p2 = (inner_x + inner_w * 0.18, inner_y + inner_h * 0.20)
+            p3 = (inner_x + inner_w * 0.82, inner_y + inner_h * 0.20)
+            c.setStrokeColor(line)
+            c.setLineWidth(2)
+            c.line(*p1, *p2)
+            c.line(*p2, *p3)
+            c.line(*p3, *p1)
+            draw_centered(c, "Quality", p1[0] - 45, p1[1] + 18, 90, color=accent, size=13)
+            draw_centered(c, "Latency", p2[0] - 45, p2[1] - 25, 90, color=secondary, size=13)
+            draw_centered(c, "Resources", p3[0] - 50, p3[1] - 25, 100, color=colors.HexColor("#b45f3c"), size=13)
+            c.setFillColor(accent)
+            c.circle(inner_x + inner_w * 0.56, inner_y + inner_h * 0.47, 10, stroke=0, fill=1)
+            draw_label(c, "final route", inner_x + inner_w * 0.56 + 16, inner_y + inner_h * 0.47 - 4, color=ink, size=11)
+        elif kind == "closing":
+            draw_icon(c, "pi", inner_x + inner_w * 0.44, inner_y + inner_h * 0.50, 82, accent)
+            draw_panel(c, inner_x + inner_w * 0.16, inner_y + inner_h * 0.18, inner_w * 0.68, 72, fill=colors.HexColor("#e9f6f1"), stroke=accent, radius=18)
+            draw_centered(c, "Right local model for each edge job", inner_x + inner_w * 0.16, inner_y + inner_h * 0.18 + 42, inner_w * 0.68, color=ink, size=16)
+            for i, label in enumerate(["Private", "Reliable", "Measured"]):
+                draw_centered(c, label, inner_x + i * inner_w / 3, inner_y + inner_h - 40, inner_w / 3, color=accent if i != 1 else secondary, size=13)
+
     c = canvas.Canvas(str(pdf_path), pagesize=(width, height))
     c.setTitle("Edge Task Hub Presentation Slides")
     c.setAuthor("Edge Task Hub Team")
@@ -1036,13 +1320,13 @@ def slides_reportlab_pdf(slides: list[dict[str, Any]], pdf_path: Path) -> bool:
         c.setFont("Helvetica-Bold", 14)
         c.drawString(margin_x, height - top_margin, slide.get("kicker", "Edge AI").upper())
 
-        y = height - top_margin - 0.46 * inch
-        y = draw_wrapped(c, slide["title"], margin_x, y, "Helvetica-Bold", 32, 37, width - 2 * margin_x, text_color)
-        y -= 0.06 * inch
+        y = height - top_margin - 0.42 * inch
+        y = draw_wrapped(c, slide["title"], margin_x, y, "Helvetica-Bold", 31, 36, width - 2 * margin_x, text_color)
+        y -= 0.04 * inch
         lead = slide.get("lead") or ""
         if lead:
-            y = draw_wrapped(c, lead, margin_x, y, "Helvetica", 17, 23, width - 2 * margin_x, colors.HexColor("#31445d"))
-            y -= 0.12 * inch
+            y = draw_wrapped(c, lead, margin_x, y, "Helvetica", 15.5, 21, width - 2 * margin_x, colors.HexColor("#31445d"))
+            y -= 0.16 * inch
 
         if slide.get("table"):
             table_data = slide["table"]
@@ -1065,17 +1349,28 @@ def slides_reportlab_pdf(slides: list[dict[str, Any]], pdf_path: Path) -> bool:
             table_width, table_height = table.wrapOn(c, width - 2 * margin_x, y)
             table.drawOn(c, margin_x, max(0.55 * inch, y - table_height))
         else:
-            c.setFont("Helvetica", 16)
-            c.setFillColor(text_color)
-            bullet_x = margin_x + 0.08 * inch
-            text_x = margin_x + 0.32 * inch
-            for item in slide.get("bullets", []):
-                lines = wrap_text(item, "Helvetica", 16, width - text_x - margin_x)
-                c.drawString(bullet_x, y, "-")
-                for line in lines:
-                    c.drawString(text_x, y, line)
-                    y -= 22
-                y -= 6
+            visual = slide.get("visual")
+            visual_x = margin_x + 4.35 * inch
+            visual_y = 0.58 * inch
+            visual_w = width - visual_x - margin_x
+            visual_h = max(3.9 * inch, y - visual_y - 0.05 * inch)
+            if visual:
+                draw_visual(c, visual, visual_x, visual_y, visual_w, visual_h, accent)
+                text_w = visual_x - margin_x - 0.42 * inch
+            else:
+                text_w = width - 2 * margin_x
+            card_y = y
+            for item_index, item in enumerate(slide.get("bullets", [])[:5]):
+                lines = wrap_text(item, "Helvetica", 11.2, text_w - 36)
+                card_h = 32 + max(0, len(lines) - 1) * 12
+                draw_panel(c, margin_x, card_y - card_h + 4, text_w, card_h, fill=colors.white, stroke=colors.HexColor("#d8e1ea"), radius=10)
+                c.setFillColor(accent if item_index % 2 == 0 else secondary)
+                c.circle(margin_x + 17, card_y - 12, 5, stroke=0, fill=1)
+                c.setFillColor(text_color)
+                c.setFont("Helvetica", 11.2)
+                for line_index, text_line in enumerate(lines[:3]):
+                    c.drawString(margin_x + 31, card_y - 16 - line_index * 12, text_line)
+                card_y -= card_h + 8
 
         c.showPage()
     c.save()
@@ -1127,70 +1422,80 @@ def build_slides(evidence: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "title": "Edge Task Hub",
             "lead": "Resource-aware Edge AI automation on Raspberry Pi.",
-            "bullets": ["Feishu is the message channel.", "Raspberry Pi is the intelligence boundary.", "Local inference, local scheduling, local fallback, and local monitoring happen on the edge device."],
+            "bullets": ["Feishu is only the message channel.", "Raspberry Pi is the intelligence boundary.", "Local inference, scheduling, fallback, and monitoring happen on the edge device."],
+            "visual": "hero",
         },
         {
             "title": "What We Must Prove",
             "lead": "This is an Edge AI course project, not a general chatbot project.",
-            "bullets": ["The presentation focuses on experimental setup, results, discussion, and analysis.", "Every result is explained through edge constraints.", "The key claim is resource-aware local intelligence, not simply using an LLM."],
+            "bullets": ["Focus on setup, results, discussion, and analysis.", "Explain every result through edge constraints.", "Claim resource-aware local intelligence, not just LLM usage."],
+            "visual": "proof",
         },
         {
             "title": "Why Edge AI?",
             "lead": "Cloud AI can ignore constraints that matter on a Raspberry Pi.",
             "bullets": ["Privacy: private document text should stay on the device.", "Memory and storage: model choice must fit real Pi limits.", "Latency policy: reminders must be punctual; summaries can wait.", "Reliability: the system still needs useful behavior when an LLM fails."],
+            "visual": "constraints",
         },
         {
             "title": "System Architecture",
             "lead": "Feishu is the interface; the Raspberry Pi owns the local decision path.",
-            "bullets": ["FastAPI exposes local APIs and Feishu callback endpoints.", "APScheduler controls reminder and news-summary timing.", "SQLite records tasks, runs, events, document metadata, and metrics.", "Ollama and Isolation Forest provide local intelligence."],
+            "bullets": ["FastAPI exposes local APIs and Feishu callbacks.", "APScheduler controls reminder and summary timing.", "SQLite records tasks, runs, events, and metrics.", "Ollama and Isolation Forest provide local intelligence."],
+            "visual": "architecture",
         },
         {
             "title": "User Workflows",
             "lead": "The project is a useful edge system, not only a model benchmark.",
             "bullets": [f"Daily previous-day news summary: {daily.get('cron_expr', '0 10 * * *')} local time.", "Built-in lunch and sleep reminders: 12:00 and 23:30.", "User-created reminders through Feishu text commands.", "Private document summaries from Feishu file events."],
+            "visual": "workflows",
         },
         {
             "title": "Experimental Setup",
             "lead": "Experiments were run on the deployed Raspberry Pi, not only on a laptop.",
             "bullets": ["Runtime stack: FastAPI, APScheduler, SQLite, Ollama, and scikit-learn.", "LLM candidates: qwen3.5:2b, qwen3.5:0.8b, qwen2.5:0.5b, qwen3:1.7b, and qwen3:0.6b.", "Non-LLM intelligence: deterministic rules fallback and Isolation Forest."],
+            "visual": "setup",
         },
         {
             "title": "Model Selection Journey",
             "lead": "Changing models was the experiment: each model tested a different edge constraint.",
-            "bullets": ["qwen3.5:2b: stronger expected quality, but too heavy and unstable for Pi deployment.", "qwen3.5:0.8b: quantized, but still slow and output-unstable on cold start.", "qwen2.5:0.5b-instruct: fast, but lower summary quality.", "Final design: qwen3:1.7b for waitable summaries and qwen3:0.6b for shorter prompts."],
+            "bullets": ["2B candidate tested quality but failed deployability.", "0.8B quantized model tested memory reduction.", "0.5B model tested speed but lost quality.", "Final design routes by edge job."],
+            "visual": "funnel",
         },
         {
             "title": "Model Results",
             "lead": "The final model choice balances quality, speed, memory, and deployability.",
-            "table": {
-                "headers": ["Candidate", "Constraint", "Decision"],
-                "rows": [[row["candidate"], row["constraint"], row["decision"]] for row in MODEL_ROWS[:5]],
-            },
+            "bullets": ["qwen3:1.7b is selected for waitable summaries.", "qwen2.5:0.5b is fast but weaker.", "qwen3.5:0.8b is quantized but still slow.", "qwen3.5:2b is rejected before final inference."],
+            "visual": "results",
         },
         {
             "title": "Why qwen3.5:0.8b Was Rejected",
             "lead": "Quantization helps model size, but it did not solve this edge workload.",
             "bullets": ["Recorded cold-start runs were about 52 to 75 seconds.", "Generation speed was about 2 tokens/s.", "Visible output was empty or length-limited.", "Likely causes: cold loading, Pi CPU speed, memory pressure, and thinking-token budget."],
+            "visual": "cold_start",
         },
         {
             "title": "Why Non-LLM Models Matter",
             "lead": "Edge AI should use the smallest reliable intelligence for each local job.",
             "bullets": ["Rules fallback is deterministic when Ollama is unavailable.", "Isolation Forest is better than an LLM for CPU, memory, disk, temperature, and network metrics.", "APScheduler plus SQLite gives local timing control for reminders.", "This is hybrid Edge AI, not only LLM Edge AI."],
+            "visual": "hybrid",
         },
         {
             "title": "Privacy and Automation Results",
             "lead": "Private processing stays local while Feishu only delivers commands and results.",
             "bullets": ["Feishu text can create scheduled reminders.", "Feishu files can trigger private document summaries.", "Document text is extracted and summarized locally.", "Verified checks cover Feishu parsing, slow-summary acceptance, document extraction, and English-only materials."],
+            "visual": "privacy",
         },
         {
             "title": "Discussion and Analysis",
             "lead": "The strongest project argument is the edge tradeoff, not only the generated text.",
             "bullets": ["Daily summaries can wait for qwen3:1.7b quality.", "Reminders need local timing reliability.", "Private files need local processing.", "Device health needs lightweight local ML.", "One best model does not exist for all edge tasks."],
+            "visual": "tradeoff",
         },
         {
             "title": "Limitations and Conclusion",
             "lead": "Edge Task Hub is a real Edge AI system with honest boundaries.",
             "bullets": ["Feishu public callback configuration is still required.", "Local LLM cold starts remain slow.", "Scanned PDFs need OCR in future work.", "Final claim: useful AI can run under edge constraints by choosing the right local model for each job."],
+            "visual": "closing",
         },
     ]
 
