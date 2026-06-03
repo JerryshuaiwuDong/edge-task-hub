@@ -157,7 +157,7 @@ def _rule_result(title: str, items: list[dict[str, Any]], mode: str) -> dict[str
 
 def _append_sources(text: str, items: list[dict[str, Any]]) -> str:
     source_lines = []
-    for index, item in enumerate(items[:8], 1):
+    for index, item in enumerate(items[:10], 1):
         link = item.get("link")
         if link:
             source_lines.append(f"{index}. [{item.get('title', 'Untitled')}]({link})")
