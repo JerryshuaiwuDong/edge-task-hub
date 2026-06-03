@@ -1,7 +1,9 @@
 import tempfile
 import unittest
 import zipfile
+import subprocess
 from pathlib import Path
+from unittest import mock
 
 from app.ai.document_summary import DocumentParseError, extract_text_from_file
 
@@ -45,6 +47,30 @@ class DocumentSummaryTest(unittest.TestCase):
             path.unlink(missing_ok=True)
 
         self.assertIn("Private Word document", text)
+
+    @mock.patch("app.ai.document_summary.shutil.which", return_value="/usr/bin/libreoffice")
+    @mock.patch("app.ai.document_summary.subprocess.run")
+    def test_extracts_legacy_doc_with_libreoffice(self, run_mock, _which_mock):
+        with tempfile.NamedTemporaryFile(suffix=".doc", delete=False) as handle:
+            handle.write(b"legacy doc placeholder")
+            path = Path(handle.name)
+
+        def fake_run(cmd, **_kwargs):
+            outdir = Path(cmd[cmd.index("--outdir") + 1])
+            source = Path(cmd[-1])
+            (outdir / f"{source.stem}.txt").write_text(
+                "Legacy Word document summary.",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(cmd, 0, stdout="converted", stderr="")
+
+        run_mock.side_effect = fake_run
+        try:
+            text = extract_text_from_file(path)
+        finally:
+            path.unlink(missing_ok=True)
+
+        self.assertIn("Legacy Word document", text)
 
 
 if __name__ == "__main__":

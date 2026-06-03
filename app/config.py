@@ -45,10 +45,10 @@ class Settings(BaseSettings):
     feishu_allowed_open_ids: str = ""
     feishu_allowed_chat_ids: str = ""
 
-    document_summary_model: str = "qwen3:1.7b"
-    document_summary_timeout_seconds: int = 300
-    document_summary_max_tokens: int = 240
-    document_summary_max_chars: int = 12000
+    document_summary_model: str = "qwen2.5:0.5b-instruct"
+    document_summary_timeout_seconds: int = 180
+    document_summary_max_tokens: int = 160
+    document_summary_max_chars: int = 4000
     document_summary_max_file_bytes: int = 8 * 1024 * 1024
 
 

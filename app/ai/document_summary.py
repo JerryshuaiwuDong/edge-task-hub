@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
+import subprocess
+import tempfile
 import time
 import zipfile
 import zlib
@@ -30,6 +33,8 @@ def extract_text_from_file(path: Path) -> str:
         return _clean_text(path.read_text(encoding="utf-8", errors="replace"))
     if suffix == ".docx":
         return _extract_docx(path)
+    if suffix == ".doc":
+        return _extract_doc(path)
     if suffix == ".pdf":
         return _extract_pdf(path)
     raise DocumentParseError(f"Unsupported file type: {suffix or 'unknown'}")
@@ -147,6 +152,50 @@ def _extract_docx(path: Path) -> str:
         if parts:
             paragraphs.append("".join(parts))
     return _clean_text("\n".join(paragraphs))
+
+
+def _extract_doc(path: Path) -> str:
+    libreoffice = shutil.which("libreoffice") or shutil.which("soffice")
+    if not libreoffice:
+        raise DocumentParseError("Legacy .doc files require LibreOffice for text extraction.")
+
+    with tempfile.TemporaryDirectory(prefix="edge-task-hub-doc-") as tmpdir:
+        outdir = Path(tmpdir)
+        cmd = [
+            libreoffice,
+            "--headless",
+            "--convert-to",
+            "txt:Text",
+            "--outdir",
+            str(outdir),
+            str(path),
+        ]
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=90,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise DocumentParseError("LibreOffice timed out while converting the .doc file.") from exc
+
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "unknown error").strip()
+            raise DocumentParseError(f"LibreOffice failed to convert the .doc file: {detail[:300]}") from None
+
+        converted = outdir / f"{path.stem}.txt"
+        if not converted.exists():
+            candidates = sorted(outdir.glob("*.txt"))
+            converted = candidates[0] if candidates else converted
+        if not converted.exists():
+            raise DocumentParseError("LibreOffice did not produce text output for the .doc file.")
+
+        text = _clean_text(converted.read_text(encoding="utf-8", errors="replace"))
+        if not text:
+            raise DocumentParseError("No readable text was found in the .doc file.")
+        return text
 
 
 def _extract_pdf(path: Path) -> str:
