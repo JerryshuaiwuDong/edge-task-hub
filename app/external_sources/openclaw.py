@@ -1,6 +1,10 @@
 import logging
+import json
+import os
 import re
+import shutil
 import subprocess
+from pathlib import Path
 
 from app.external_sources.base import ExternalSource, ExternalTask, SourceWarning
 
@@ -27,8 +31,6 @@ class OpenClawSource(ExternalSource):
             "/home/pi3/.npm-global/bin/openclaw",
             "/usr/local/bin/openclaw",
         ):
-            import shutil
-
             if shutil.which(candidate) or candidate.startswith("/"):
                 cmd = candidate
                 break
@@ -41,7 +43,7 @@ class OpenClawSource(ExternalSource):
 
         try:
             result = subprocess.run(
-                [cmd, "cron", "list"],
+                self._cron_list_command(cmd),
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -72,6 +74,27 @@ class OpenClawSource(ExternalSource):
             return []
 
         return self._parse_output(text)
+
+    def _cron_list_command(self, cmd: str) -> list[str]:
+        args = [cmd, "cron", "list"]
+        gateway_url = os.environ.get("OPENCLAW_GATEWAY_URL", "").strip()
+        if gateway_url:
+            args.extend(["--url", gateway_url])
+        token = self._gateway_token()
+        if token:
+            args.extend(["--token", token])
+        return args
+
+    def _gateway_token(self) -> str:
+        try:
+            data = json.loads(Path(self.config_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ""
+        gateway = data.get("gateway") if isinstance(data, dict) else {}
+        auth = gateway.get("auth") if isinstance(gateway, dict) else {}
+        if not isinstance(auth, dict) or auth.get("mode") != "token":
+            return ""
+        return str(auth.get("token") or "").strip()
 
     def _parse_output(self, text: str) -> list[ExternalTask]:
         tasks: list[ExternalTask] = []
