@@ -54,7 +54,7 @@
     </div>
     <div x-show="taskType==='rss_digest'" x-cloak>
       <label class="block text-sm font-medium text-slate-700">RSS Feed URL</label>
-      <input name="feed_url" value="{{ payload.feed_url if payload is defined else 'https://www.raspberrypi.com/news/feed/' }}"
+      <input name="feed_url" value="{{ payload.feed_url if payload is defined else 'https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en' }}"
              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
         <div>

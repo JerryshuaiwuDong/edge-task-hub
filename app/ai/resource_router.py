@@ -83,7 +83,7 @@ def build_router_status(db: Session | None = None) -> dict[str, Any]:
                 "type": "local_llm",
                 "installed": MAIN_MODEL in installed,
                 "status": "selected" if selected_model == MAIN_MODEL else "available",
-                "reason": "Quality-first local model for daily news and private document summaries.",
+                "reason": "Quality-first local model for daily news summaries and reminder parsing fallback.",
                 "evidence": benchmark_evidence(main),
             },
             {

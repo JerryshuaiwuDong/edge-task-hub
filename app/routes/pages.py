@@ -394,7 +394,7 @@ def task_create(
     cron_expr: str = Form(""),
     timezone: str = Form("Asia/Shanghai"),
     message: str = Form(""),
-    feed_url: str = Form("https://www.raspberrypi.com/news/feed/"),
+    feed_url: str = Form("https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en"),
     limit: int = Form(5),
     summary_mode: str = Form("auto"),
     notify: str = Form("on"),

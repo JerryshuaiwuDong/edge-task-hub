@@ -38,6 +38,17 @@ def run(task: Task, payload: dict) -> tuple[str, str, str]:
     if not items:
         return "success", "No news items matched the configured date window.", ""
 
+    min_sources = max(0, int(payload.get("min_sources") or 0))
+    if min_sources and limit < min_sources:
+        return "failed", "", f"Task limit {limit} is lower than required source count {min_sources}."
+    items = _select_source_diverse_items(items, limit)
+    source_count = _source_count(items)
+    if min_sources and source_count < min_sources:
+        detail = f"Only {source_count} distinct news sources matched; at least {min_sources} are required."
+        if feed.feed_error:
+            detail = f"{detail} Feed error: {feed.feed_error}"
+        return "failed", "", detail
+
     summary = summarize_news(
         items,
         title=task.name or "RSS Digest",
@@ -48,7 +59,12 @@ def run(task: Task, payload: dict) -> tuple[str, str, str]:
     )
     content = summary["content"]
     header = task.name or "RSS Digest"
-    note = _format_feed_note(format_run_note(summary), feed.feed_fallback, feed.feed_error)
+    note = _format_feed_note(
+        format_run_note(summary),
+        feed.feed_fallback,
+        feed.feed_error,
+        source_count,
+    )
     if not notify:
         return "success", f"{note}\nNotification skipped.\nProcessed {len(items)} items.\n\n{content}", ""
 
@@ -58,8 +74,17 @@ def run(task: Task, payload: dict) -> tuple[str, str, str]:
     return "failed", f"{note}\nNotification attempted but failed.\n\n{content}", detail
 
 
-def _format_feed_note(base_note: str, feed_fallback: bool, feed_error: str | None) -> str:
-    parts = [base_note, f"feed_fallback={str(feed_fallback).lower()}"]
+def _format_feed_note(
+    base_note: str,
+    feed_fallback: bool,
+    feed_error: str | None,
+    source_count: int,
+) -> str:
+    parts = [
+        base_note,
+        f"sources={source_count}",
+        f"feed_fallback={str(feed_fallback).lower()}",
+    ]
     if feed_error:
         parts.append(f"feed_error={feed_error}")
     return " | ".join(parts)
@@ -81,3 +106,34 @@ def _filter_items(items: list[dict], payload: dict, timezone: str) -> list[dict]
         if start <= published < end:
             filtered.append(item)
     return filtered
+
+
+def _select_source_diverse_items(items: list[dict], limit: int) -> list[dict]:
+    ranked = sorted(
+        items,
+        key=lambda item: (int(item.get("timestamp") or 0), item.get("title", "")),
+        reverse=True,
+    )
+    selected = []
+    deferred = []
+    seen_sources: set[str] = set()
+    for item in ranked:
+        source = str(item.get("source") or "Unknown source").strip()
+        key = source.casefold()
+        if key not in seen_sources:
+            selected.append(item)
+            seen_sources.add(key)
+        else:
+            deferred.append(item)
+        if len(selected) >= limit:
+            return selected
+    return (selected + deferred)[:limit]
+
+
+def _source_count(items: list[dict]) -> int:
+    return len(
+        {
+            str(item.get("source") or "Unknown source").strip().casefold()
+            for item in items
+        }
+    )

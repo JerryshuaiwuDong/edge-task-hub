@@ -116,7 +116,8 @@ def build_news_prompt(title: str, items: list[dict[str, Any]]) -> str:
     lines = [
         "You are a local news summary assistant running on a Raspberry Pi.",
         "Use only the provided titles. Do not invent facts.",
-        "Return English output with: a short title, 2-3 concise bullet points, and one overall judgement sentence.",
+        "Compare themes across sources.",
+        "Return English output with: a short title, 4-6 concise analytical bullet points, and one overall judgement sentence.",
         f"Task: {title}",
         "Titles:",
     ]

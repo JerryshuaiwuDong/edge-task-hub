@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree
 
+
 class DocumentParseError(RuntimeError):
     pass
 

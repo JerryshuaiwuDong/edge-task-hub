@@ -45,7 +45,7 @@ def _ensure_standard_tasks(db) -> None:
     tasks = [
         Task(
             name="Daily Previous-Day News Summary",
-            description="Fetch yesterday's RSS headlines, summarize them locally, and send the result to Feishu.",
+            description="Analyze yesterday's global headlines from at least ten publishers and send the local summary to Feishu.",
             task_type="rss_digest",
             schedule_kind="recurring",
             schedule_mode="simple",
@@ -54,9 +54,10 @@ def _ensure_standard_tasks(db) -> None:
             timezone="Asia/Shanghai",
             payload_json=json.dumps(
                 {
-                    "feed_url": "https://www.raspberrypi.com/news/feed/",
-                    "limit": 5,
-                    "fetch_limit": 30,
+                    "feed_url": "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en",
+                    "limit": 10,
+                    "min_sources": 10,
+                    "fetch_limit": 100,
                     "summary_mode": "ollama",
                     "model": "qwen3:1.7b",
                     "timeout": 300,

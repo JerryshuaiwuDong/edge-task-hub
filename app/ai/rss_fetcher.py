@@ -55,20 +55,14 @@ def fetch_rss_items(
         return _fallback_or_raise(_short_error(exc), fallback_items, limit)
 
 
-def _download_feed(feed_url: str, *, timeout: int) -> tuple[bytes, str | None]:
+def _download_feed(feed_url: str, *, timeout: int) -> tuple[bytes, None]:
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "application/rss+xml, application/xml, text/xml, */*",
     }
-    try:
-        response = requests.get(feed_url, headers=headers, timeout=timeout)
-        response.raise_for_status()
-        return response.content, None
-    except requests.exceptions.SSLError as exc:
-        warning = f"SSL verification failed; retried without certificate verification: {_short_error(exc)}"
-        response = requests.get(feed_url, headers=headers, timeout=timeout, verify=False)
-        response.raise_for_status()
-        return response.content, warning
+    response = requests.get(feed_url, headers=headers, timeout=timeout)
+    response.raise_for_status()
+    return response.content, None
 
 
 def _fallback_or_raise(
@@ -90,9 +84,16 @@ def _entry_to_item(entry: Any, feed_title: str) -> dict[str, Any]:
     return {
         "title": getattr(entry, "title", "Untitled"),
         "link": getattr(entry, "link", ""),
-        "source": feed_title,
+        "source": _entry_source(entry) or feed_title,
         "timestamp": parse_entry_timestamp(entry),
     }
+
+
+def _entry_source(entry: Any) -> str:
+    source = getattr(entry, "source", None)
+    if isinstance(source, dict):
+        return str(source.get("title") or "").strip()
+    return str(getattr(source, "title", "") or "").strip()
 
 
 def _normalize_fallback_item(item: dict[str, Any]) -> dict[str, Any]:

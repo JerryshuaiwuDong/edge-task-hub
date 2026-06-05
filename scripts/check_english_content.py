@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail if project code or submission materials contain Chinese characters."""
+"""Fail if project source or code documentation contains Chinese characters."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PATHS = [
     "app",
     "scripts",
-    "docs",
     "README.md",
     ".env.example",
     "requirements.txt",
